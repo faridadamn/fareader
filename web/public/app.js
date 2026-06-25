@@ -506,19 +506,21 @@ function renderReader(book) {
             · ${book.reading_time_minutes} menit baca
           </div>
           <p>${escapeHtml(book.description || "")}</p>
-          <div class="reader-toolbar">
-            <div class="reader-progress">
-              <div class="progress-track"><span class="progress-bar" style="width:${percent}%"></span></div>
-            </div>
-            <span class="muted">${percent}% selesai</span>
+          <div class="reader-inline-settings">
             <div class="font-size-control" aria-label="Ubah ukuran font">
               <button type="button" data-font-scale="-0.1" aria-label="Perkecil font">A−</button>
               <span data-font-scale-label>${Math.round(state.fontScale * 100)}%</span>
               <button type="button" data-font-scale="0.1" aria-label="Perbesar font">A+</button>
             </div>
+          </div>
+          <div class="reader-toolbar">
+            <div class="reader-progress">
+              <div class="progress-track"><span class="progress-bar" style="width:${percent}%"></span></div>
+            </div>
+            <span class="muted reader-progress-label">${percent}%</span>
             <button type="button" class="reader-action" data-create-highlight>Highlight</button>
             <button type="button" class="reader-action bookmark-button ${saved ? "saved" : ""}" data-reader-bookmark="${escapeHtml(book.slug)}">
-              ${saved ? "▰ Tersimpan" : "▱ Bookmark"}
+              ${saved ? "▰ Tersimpan" : "▱ Simpan"}
             </button>
           </div>
         </header>
@@ -568,8 +570,8 @@ function setReaderSection(book, index) {
 function updateReaderProgressUI(book, sectionIndex) {
   const percent = Math.min(100, Math.round(((sectionIndex + 1) / book.sections.length) * 100));
   elements.reader.querySelector(".reader-toolbar .progress-bar")?.style.setProperty("width", `${percent}%`);
-  const label = elements.reader.querySelector(".reader-toolbar .muted");
-  if (label) label.textContent = `${percent}% selesai`;
+  const label = elements.reader.querySelector(".reader-progress-label");
+  if (label) label.textContent = `${percent}%`;
   elements.reader.querySelectorAll("[data-section]").forEach((button) => {
     button.classList.toggle("active", Number(button.dataset.section) === sectionIndex);
   });

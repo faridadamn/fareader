@@ -455,17 +455,6 @@ select {
   font-size: 18px;
 }
 
-.reader-toolbar .bookmark-button {
-  display: inline-flex;
-  width: auto;
-  min-width: 128px;
-  height: 42px;
-  padding: 0 16px;
-  gap: 8px;
-  white-space: nowrap;
-  font-size: 14px;
-}
-
 .bookmark-button.saved {
   border-color: rgba(0, 153, 168, 0.32);
   background: var(--teal-100);
@@ -631,11 +620,25 @@ select {
 }
 
 .reader-toolbar {
+  position: fixed;
+  right: 22px;
+  bottom: calc(22px + var(--safe-bottom));
+  z-index: 55;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin-top: 22px;
+  gap: 8px;
+  width: min(360px, calc(100vw - 32px));
+  padding: 9px;
+  border: 1px solid rgba(220, 232, 238, 0.92);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18px 54px rgba(7, 27, 77, 0.18);
+  backdrop-filter: blur(18px);
+}
+
+.reader-inline-settings {
+  display: flex;
+  margin-top: 20px;
 }
 
 .font-size-control {
@@ -746,7 +749,39 @@ select {
 }
 
 .reader-progress {
-  flex: 1 1 240px;
+  flex: 1 1 auto;
+  min-width: 80px;
+}
+
+.reader-toolbar .progress-track {
+  height: 7px;
+}
+
+.reader-progress-label {
+  min-width: 34px;
+  color: var(--navy-900);
+  font-size: 12px;
+  font-weight: 950;
+  text-align: right;
+}
+
+.reader-toolbar .reader-action {
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 14px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.reader-toolbar .bookmark-button {
+  display: inline-flex;
+  width: auto;
+  min-width: 88px;
+  height: 38px;
+  padding: 0 12px;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 13px;
 }
 
 .reader-body {
@@ -940,6 +975,25 @@ select {
 
   .reader-section p {
     font-size: calc(17px * var(--reader-font-scale));
+  }
+
+  .reader-toolbar {
+    right: 12px;
+    bottom: calc(88px + var(--safe-bottom));
+    width: min(336px, calc(100vw - 24px));
+    gap: 7px;
+    padding: 8px;
+    border-radius: 20px;
+  }
+
+  .reader-toolbar .reader-action {
+    min-height: 36px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .reader-toolbar .bookmark-button {
+    min-width: 76px;
   }
 
   .bottom-nav {
