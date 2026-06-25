@@ -14,9 +14,9 @@ echo.
 call gradlew.bat clean assembleDebug --no-daemon --max-workers=1 -Dorg.gradle.parallel=false
 
 echo.
-if exist "app\build\outputs\apk\debug\app-debug.apk" (
+if exist "build\app\outputs\apk\debug\app-debug.apk" (
   echo APK ready:
-  echo %CD%\app\build\outputs\apk\debug\app-debug.apk
+  echo %CD%\build\app\outputs\apk\debug\app-debug.apk
 ) else (
   echo APK belum terbentuk. Cek error Gradle di atas.
 )
