@@ -1,6 +1,6 @@
 {
-  "buildCommand": null,
-  "outputDirectory": "web/public",
+  "buildCommand": "npm run prepare:vercel",
+  "outputDirectory": "public",
   "functions": {
     "api/**/*.js": {
       "maxDuration": 10

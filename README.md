@@ -190,7 +190,7 @@ Di Vercel:
 2. Framework Preset: `Other`.
 3. Root Directory: kosongkan atau pilih root repo.
 4. Build Command: kosong/default dari `vercel.json`.
-5. Output Directory: `web/public`.
+5. Output Directory: kosong/default dari `vercel.json`.
 6. Environment Variables:
 
 ```text
