@@ -139,6 +139,43 @@ npm run cap:sync
 
 Catatan: backend Node di `web/server.mjs` tetap diperlukan untuk endpoint `/api/meta`, `/api/books`, dan `/api/books/:slug`. Jangan menaruh `DATABASE_URL` langsung di aplikasi mobile.
 
+## Publish online
+
+Alur online yang aman:
+
+1. Deploy backend Node `web/server.mjs` ke hosting Node.js.
+2. Isi environment hosting:
+
+```text
+DATABASE_URL=postgresql://...
+PORT=4176
+HOST=0.0.0.0
+CORS_ORIGIN=*
+```
+
+3. Tes backend:
+
+```text
+https://domain-backend-kamu.com/api/health
+https://domain-backend-kamu.com/api/meta
+```
+
+4. Arahkan aplikasi mobile ke backend:
+
+```javascript
+// web/public/config.js
+window.FA_READER_API_BASE = "https://domain-backend-kamu.com";
+```
+
+5. Sync dan build ulang Android:
+
+```powershell
+npm run cap:sync
+BUILD-ANDROID.cmd
+```
+
+Mode publik hanya menampilkan buku dengan status `published`. Untuk cek data sebelum publish massal, jalankan backend dengan `PREVIEW_CATALOG=1`.
+
 Dokumentasi lengkap:
 
 - `docs/DATABASE-SCHEMA.md`

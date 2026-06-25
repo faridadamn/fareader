@@ -8,11 +8,18 @@ const webDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectDirectory = path.resolve(webDirectory, "..");
 const workspaceDirectory = path.resolve(projectDirectory, "..");
 const publicDirectory = path.join(webDirectory, "public");
-const envPath = process.env.ENV_PATH
-  || path.join(workspaceDirectory, "belajar-scraping", ".env");
+const fallbackEnvPath = path.join(workspaceDirectory, "belajar-scraping", ".env");
+const envPath = process.env.ENV_PATH || path.join(projectDirectory, ".env");
 const port = Number(process.env.PORT || 4176);
+const host = process.env.HOST || "0.0.0.0";
 const previewMode = process.argv.includes("--preview")
   || process.env.PREVIEW_CATALOG === "1";
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGIN || "*")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
 
 function parseEnv(text) {
   const result = {};
@@ -30,7 +37,19 @@ function parseEnv(text) {
   return result;
 }
 
-const env = parseEnv(await readFile(envPath, "utf8"));
+async function readEnvFile(filePath) {
+  try {
+    return parseEnv(await readFile(filePath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+const env = {
+  ...(await readEnvFile(fallbackEnvPath)),
+  ...(await readEnvFile(envPath)),
+  ...process.env,
+};
 if (!env.DATABASE_URL) throw new Error("DATABASE_URL tidak ditemukan.");
 
 const sql = postgres(env.DATABASE_URL, {
@@ -40,7 +59,19 @@ const sql = postgres(env.DATABASE_URL, {
   idle_timeout: 30,
 });
 
-function sendJson(response, status, payload) {
+function applyCors(request, response) {
+  const origin = request.headers.origin;
+  const allowAll = allowedOrigins.has("*");
+  if (allowAll || (origin && allowedOrigins.has(origin))) {
+    response.setHeader("Access-Control-Allow-Origin", allowAll ? "*" : origin);
+    response.setHeader("Vary", "Origin");
+  }
+  response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+}
+
+function sendJson(request, response, status, payload) {
+  applyCors(request, response);
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
@@ -185,6 +216,19 @@ async function loadBook(slug) {
 const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url, `http://${request.headers.host}`);
+    if (request.method === "OPTIONS") {
+      applyCors(request, response);
+      response.writeHead(204);
+      response.end();
+      return;
+    }
+    if (request.method === "GET" && url.pathname === "/api/health") {
+      const [row] = await sql`SELECT 1 AS ok`;
+      return sendJson(request, response, 200, {
+        ok: row.ok === 1,
+        mode: previewMode ? "preview" : "published-only",
+      });
+    }
     if (request.method === "GET" && url.pathname === "/api/meta") {
       const [stats, categories] = await Promise.all([
         sql`
@@ -194,34 +238,34 @@ const server = createServer(async (request, response) => {
         `,
         loadCategories(),
       ]);
-      return sendJson(response, 200, {
+      return sendJson(request, response, 200, {
         total: stats[0].total,
         categories,
         preview: previewMode,
       });
     }
     if (request.method === "GET" && url.pathname === "/api/books") {
-      return sendJson(response, 200, await loadBooks(url));
+      return sendJson(request, response, 200, await loadBooks(url));
     }
     const detailMatch = url.pathname.match(/^\/api\/books\/([^/]+)$/);
     if (request.method === "GET" && detailMatch) {
       const book = await loadBook(decodeURIComponent(detailMatch[1]));
       return book
-        ? sendJson(response, 200, book)
-        : sendJson(response, 404, { error: "Buku belum tersedia." });
+        ? sendJson(request, response, 200, book)
+        : sendJson(request, response, 404, { error: "Buku belum tersedia." });
     }
     if (await serveStatic(response, url.pathname)) return;
-    sendJson(response, 404, { error: "Not found" });
+    sendJson(request, response, 404, { error: "Not found" });
   } catch (error) {
-    sendJson(response, 500, {
+    sendJson(request, response, 500, {
       error: error instanceof Error ? error.message : String(error),
     });
   }
 });
 
-server.listen(port, "127.0.0.1", () => {
+server.listen(port, host, () => {
   const mode = previewMode ? "preview" : "published-only";
-  console.log(`Reader app (${mode}): http://127.0.0.1:${port}`);
+  console.log(`Reader app (${mode}): http://${host}:${port}`);
 });
 
 async function shutdown() {

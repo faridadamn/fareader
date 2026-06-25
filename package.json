@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "node web/server.mjs",
     "ingest": "node scripts/ingest-pdfs.mjs",
     "ingest:sample": "node scripts/ingest-pdfs.mjs --limit 30",
     "import:validate": "node scripts/import-postgres.mjs --dry-run",
