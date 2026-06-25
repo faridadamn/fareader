@@ -176,6 +176,43 @@ BUILD-ANDROID.cmd
 
 Mode publik hanya menampilkan buku dengan status `published`. Untuk cek data sebelum publish massal, jalankan backend dengan `PREVIEW_CATALOG=1`.
 
+### Deploy ke Vercel
+
+Repo ini sudah punya adapter Vercel:
+
+- Static app: `web/public`
+- Serverless API: `api/health.js`, `api/meta.js`, `api/books/index.js`, `api/books/[slug].js`
+- Konfigurasi: `vercel.json`
+
+Di Vercel:
+
+1. Import repo GitHub.
+2. Framework Preset: `Other`.
+3. Root Directory: kosongkan atau pilih root repo.
+4. Build Command: kosong/default dari `vercel.json`.
+5. Output Directory: `web/public`.
+6. Environment Variables:
+
+```text
+DATABASE_URL=postgresql://...
+CORS_ORIGIN=*
+```
+
+Opsional untuk melihat buku `ready_for_review` saat preview:
+
+```text
+PREVIEW_CATALOG=1
+```
+
+Setelah deploy, cek:
+
+```text
+https://domain-vercel-kamu.vercel.app/api/health
+https://domain-vercel-kamu.vercel.app/api/meta
+```
+
+Untuk APK mobile, isi domain Vercel di `web/public/config.js`, jalankan `npm run cap:sync`, lalu build ulang dengan `BUILD-ANDROID.cmd`.
+
 Dokumentasi lengkap:
 
 - `docs/DATABASE-SCHEMA.md`

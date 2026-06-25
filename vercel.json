@@ -1,0 +1,9 @@
+{
+  "buildCommand": null,
+  "outputDirectory": "web/public",
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 10
+    }
+  }
+}
