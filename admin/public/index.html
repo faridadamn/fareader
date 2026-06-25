@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review Konten — Ebook Summary Reader</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">Ebook Summary Reader</p>
+      <h1>Review Konten</h1>
+    </div>
+    <div class="topbar-note">Data review tersimpan ke Supabase dan tidak mengubah JSON sumber.</div>
+  </header>
+
+  <main>
+    <section class="stats" id="stats" aria-label="Ringkasan katalog"></section>
+
+    <section class="workspace">
+      <aside class="queue">
+        <div class="filters">
+          <label>
+            Cari
+            <input id="searchInput" type="search" placeholder="Judul atau penulis">
+          </label>
+          <div class="filter-row">
+            <label>
+              Quality
+              <select id="statusFilter">
+                <option value="all">Semua</option>
+                <option value="needs_review">Perlu pemeriksaan</option>
+                <option value="ready_for_review">Siap direview</option>
+                <option value="published">Published</option>
+                <option value="rejected">Ditolak</option>
+              </select>
+            </label>
+            <label>
+              Keputusan
+              <select id="decisionFilter">
+                <option value="all">Semua</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Disetujui</option>
+                <option value="published">Published</option>
+                <option value="rejected">Ditolak</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="queue-meta">
+          <span id="resultCount">Memuat…</span>
+          <div>
+            <button id="previousPage" class="quiet-button" type="button">←</button>
+            <span id="pageLabel">1 / 1</span>
+            <button id="nextPage" class="quiet-button" type="button">→</button>
+          </div>
+        </div>
+        <div id="bookList" class="book-list"></div>
+      </aside>
+
+      <section class="detail" id="detail">
+        <div class="empty-state">
+          <span class="empty-icon">⌁</span>
+          <h2>Pilih buku untuk diperiksa</h2>
+          <p>Metadata, quality issue, dan struktur bagian akan tampil di sini.</p>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <template id="detailTemplate">
+    <article>
+      <div class="detail-heading">
+        <div>
+          <div class="status-row" data-role="statuses"></div>
+          <h2 data-role="title"></h2>
+          <p class="author" data-role="author"></p>
+        </div>
+        <a data-role="source" class="source-link" target="_blank" rel="noreferrer">Sumber ↗</a>
+      </div>
+
+      <div class="metadata-grid" data-role="metadata"></div>
+      <p class="description" data-role="description"></p>
+      <div class="tag-row" data-role="categories"></div>
+
+      <section class="issues-panel">
+        <h3>Quality gate</h3>
+        <div data-role="issues"></div>
+      </section>
+
+      <section class="review-panel">
+        <h3>Keputusan review</h3>
+        <div class="decision-buttons">
+          <button type="button" data-decision="approved" class="approve-button">Setujui</button>
+          <button type="button" data-decision="published" class="publish-button">Publish</button>
+          <button type="button" data-decision="rejected" class="reject-button">Tolak</button>
+          <button type="button" data-decision="pending" class="quiet-button">Kembalikan ke pending</button>
+        </div>
+        <div class="rights-box">
+          <label class="checkbox-label">
+            <input data-role="rightsVerified" type="checkbox">
+            <span>Hak penggunaan konten telah diverifikasi</span>
+          </label>
+          <label>
+            Catatan hak penggunaan
+            <textarea data-role="rightsNotes" rows="2" placeholder="Dasar izin, pemilik hak, atau referensi dokumen…"></textarea>
+          </label>
+        </div>
+        <label>
+          Catatan reviewer
+          <textarea data-role="notes" rows="4" placeholder="Tuliskan koreksi metadata atau alasan keputusan…"></textarea>
+        </label>
+        <div class="save-row">
+          <span data-role="saveStatus"></span>
+          <button type="button" data-role="save" class="primary-button">Simpan review</button>
+        </div>
+      </section>
+
+      <section class="sections-panel">
+        <div class="section-heading">
+          <h3>Struktur rangkuman</h3>
+          <span data-role="sectionCount"></span>
+        </div>
+        <div data-role="sections"></div>
+      </section>
+    </article>
+  </template>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "appId": "com.fareader.app",
+  "appName": "FA Reader",
+  "webDir": "web/public",
+  "server": {
+    "androidScheme": "https"
+  }
+}

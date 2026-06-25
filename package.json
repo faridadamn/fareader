@@ -1,0 +1,29 @@
+{
+  "name": "ebook-summary-reader",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ingest": "node scripts/ingest-pdfs.mjs",
+    "ingest:sample": "node scripts/ingest-pdfs.mjs --limit 30",
+    "import:validate": "node scripts/import-postgres.mjs --dry-run",
+    "import:postgres": "node scripts/import-postgres.mjs",
+    "import:supabase": "node scripts/import-supabase.mjs",
+    "admin": "node admin/server.mjs",
+    "web": "node web/server.mjs",
+    "web:preview": "node web/server.mjs --preview",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android",
+    "android:build": "cd android && gradlew.bat assembleDebug --no-daemon --max-workers=1 -Dorg.gradle.parallel=false"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^5.4.296",
+    "pg": "^8.16.3",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/core": "^7.4.3"
+  }
+}
