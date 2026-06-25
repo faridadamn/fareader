@@ -189,8 +189,8 @@ Di Vercel:
 1. Import repo GitHub.
 2. Framework Preset: `Other`.
 3. Root Directory: kosongkan atau pilih root repo.
-4. Build Command: kosong/default dari `vercel.json`.
-5. Output Directory: kosong/default dari `vercel.json`.
+4. Build Command: `npm run build`.
+5. Output Directory: `public`.
 6. Environment Variables:
 
 ```text

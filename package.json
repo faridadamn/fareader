@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node web/server.mjs",
+    "build": "node scripts/prepare-vercel.mjs",
     "prepare:vercel": "node scripts/prepare-vercel.mjs",
     "ingest": "node scripts/ingest-pdfs.mjs",
     "ingest:sample": "node scripts/ingest-pdfs.mjs --limit 30",
