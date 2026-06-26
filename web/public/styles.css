@@ -160,6 +160,34 @@ a {
   line-height: 1.55;
 }
 
+.support-button,
+.buy-original-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border: 0;
+  border-radius: 14px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.support-button {
+  background: var(--teal-100);
+  color: var(--teal-700);
+}
+
+.buy-original-button {
+  background: linear-gradient(135deg, var(--navy-700), var(--teal-700));
+  color: white;
+  box-shadow: 0 12px 28px rgba(7, 27, 77, 0.16);
+}
+
+.sync-card .support-button {
+  margin-top: 6px;
+}
+
 .main-area {
   min-width: 0;
   padding: 22px clamp(18px, 4vw, 46px) 48px;
@@ -685,7 +713,20 @@ select {
 
 .reader-inline-settings {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 20px;
+}
+
+.reader-commerce-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.compact-support {
+  min-height: 42px;
 }
 
 .font-size-control {
@@ -919,6 +960,74 @@ select {
 
 .bottom-nav {
   display: none;
+}
+
+.modal-open {
+  overflow: hidden;
+}
+
+.support-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.support-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 20, 57, 0.52);
+  backdrop-filter: blur(8px);
+}
+
+.support-sheet {
+  position: relative;
+  z-index: 1;
+  width: min(420px, 100%);
+  padding: 22px;
+  border-radius: 26px;
+  background: white;
+  box-shadow: 0 24px 80px rgba(7, 27, 77, 0.26);
+  text-align: center;
+}
+
+.support-sheet h2 {
+  margin: 0 36px 8px;
+  color: var(--navy-950);
+  font-size: 24px;
+}
+
+.support-sheet p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.support-sheet img {
+  display: block;
+  width: 100%;
+  max-height: min(68vh, 520px);
+  object-fit: contain;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+}
+
+.support-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--navy-900);
+  font-size: 22px;
+  line-height: 1;
 }
 
 @media (max-width: 1120px) {

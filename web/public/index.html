@@ -32,6 +32,7 @@
       <section class="sync-card">
         <strong>Baca lebih fokus.</strong>
         <span>Progress dan bookmark tersimpan di perangkat ini.</span>
+        <button class="support-button" type="button" data-support-open>Support FA Reader</button>
       </section>
     </aside>
 
@@ -68,6 +69,7 @@
               <small>Sedang dibaca</small>
             </div>
           </div>
+          <button class="support-button hero-support" type="button" data-support-open>Support via QRIS</button>
         </section>
 
         <section id="continuePanel" class="continue-panel is-hidden"></section>
@@ -132,6 +134,16 @@
       <small>Reader</small>
     </button>
   </nav>
+
+  <div id="supportModal" class="support-modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="supportTitle">
+    <div class="support-backdrop" data-support-close></div>
+    <section class="support-sheet">
+      <button class="support-close" type="button" data-support-close aria-label="Tutup">×</button>
+      <h2 id="supportTitle">Support FA Reader</h2>
+      <p>Scan QRIS ini kalau ingin bantu pengembangan FA Reader.</p>
+      <img src="/assets/qris-support.jpeg" alt="QRIS support FA Reader">
+    </section>
+  </div>
 
   <script src="/config.js"></script>
   <script type="module" src="/app.js"></script>

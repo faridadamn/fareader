@@ -227,6 +227,7 @@ export async function loadBook(slug) {
     SELECT
       b.*,
       src.source_url,
+      src.metadata->>'purchase_url' AS purchase_url,
       coalesce(
         array_agg(DISTINCT c.name) FILTER (WHERE c.id IS NOT NULL),
         ARRAY[]::citext[]
@@ -248,7 +249,7 @@ export async function loadBook(slug) {
     LEFT JOIN book_categories bc ON bc.book_id = b.id
     LEFT JOIN categories c ON c.id = bc.category_id
     WHERE b.slug = ${slug}
-    GROUP BY b.id, src.source_url
+    GROUP BY b.id, src.source_url, src.metadata
   `;
   if (!book) return null;
   const [sections, issues] = await Promise.all([
@@ -386,6 +387,7 @@ export async function updateBookMetadata(slug, payload) {
     const originalAuthor = cleanText(payload.original_author, 500) || null;
     const description = cleanText(payload.description, 5000) || null;
     const pageCount = Math.max(0, Number(payload.page_count || 0));
+    const purchaseUrl = cleanText(payload.purchase_url, 2000) || null;
 
     await tx`
       UPDATE books
@@ -397,12 +399,22 @@ export async function updateBookMetadata(slug, payload) {
       WHERE id = ${current.id}
     `;
     await tx`
+      UPDATE book_sources
+      SET metadata = jsonb_set(
+        coalesce(metadata, '{}'::jsonb),
+        '{purchase_url}',
+        ${JSON.stringify(purchaseUrl)}::jsonb,
+        true
+      )
+      WHERE book_id = ${current.id}
+    `;
+    await tx`
       INSERT INTO content_audit_log (book_id, action, before_data, after_data)
       VALUES (
         ${current.id},
         'admin_metadata_update',
         ${tx.json(current)},
-        ${tx.json({ title, original_author: originalAuthor, description, page_count: pageCount })}
+        ${tx.json({ title, original_author: originalAuthor, description, page_count: pageCount, purchase_url: purchaseUrl })}
       )
     `;
   });

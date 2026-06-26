@@ -43,6 +43,7 @@ const elements = {
   pageLabel: document.querySelector("#pageLabel"),
   reader: document.querySelector("#reader"),
   continuePanel: document.querySelector("#continuePanel"),
+  supportModal: document.querySelector("#supportModal"),
   views: {
     library: document.querySelector("#libraryView"),
     bookmarks: document.querySelector("#bookmarksView"),
@@ -508,6 +509,14 @@ function renderReader(book) {
               <span data-font-scale-label>${Math.round(state.fontScale * 100)}%</span>
               <button type="button" data-font-scale="0.1" aria-label="Perbesar font">A+</button>
             </div>
+            <div class="reader-commerce-actions">
+              ${book.purchase_url ? `
+                <a class="buy-original-button" href="${escapeHtml(book.purchase_url)}" target="_blank" rel="noopener noreferrer">
+                  Beli buku asli
+                </a>
+              ` : ""}
+              <button class="support-button compact-support" type="button" data-support-open>Support</button>
+            </div>
           </div>
           <div class="reader-toolbar">
             ${progressRing(percent, "reader-progress-ring")}
@@ -664,6 +673,27 @@ document.querySelectorAll("[data-view]").forEach((item) => {
     event.preventDefault();
     setView(item.dataset.view);
   });
+});
+
+function openSupportModal() {
+  elements.supportModal?.classList.remove("is-hidden");
+  document.body.classList.add("modal-open");
+}
+
+function closeSupportModal() {
+  elements.supportModal?.classList.add("is-hidden");
+  document.body.classList.remove("modal-open");
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-support-open], [data-support-close]");
+  if (!target) return;
+  if (target.matches("[data-support-open]")) openSupportModal();
+  if (target.matches("[data-support-close]")) closeSupportModal();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeSupportModal();
 });
 
 document.querySelectorAll("[data-saved-tab]").forEach((button) => {

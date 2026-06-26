@@ -163,11 +163,13 @@ function renderDetail(book) {
   const bookTitleInput = find("bookTitleInput");
   const bookAuthorInput = find("bookAuthorInput");
   const bookPageCountInput = find("bookPageCountInput");
+  const bookPurchaseUrlInput = find("bookPurchaseUrlInput");
   const bookDescriptionInput = find("bookDescriptionInput");
   const metadataSaveStatus = find("metadataSaveStatus");
   bookTitleInput.value = book.title || "";
   bookAuthorInput.value = book.original_author || "";
   bookPageCountInput.value = book.page_count || 0;
+  bookPurchaseUrlInput.value = book.purchase_url || "";
   bookDescriptionInput.value = book.description || "";
   find("saveMetadata").addEventListener("click", async () => {
     metadataSaveStatus.textContent = "Menyimpan…";
@@ -179,6 +181,7 @@ function renderDetail(book) {
           title: bookTitleInput.value,
           original_author: bookAuthorInput.value,
           page_count: bookPageCountInput.value,
+          purchase_url: bookPurchaseUrlInput.value,
           description: bookDescriptionInput.value,
         }),
       });

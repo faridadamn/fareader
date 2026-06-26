@@ -164,6 +164,7 @@ export async function loadBook(slug) {
       b.original_author,
       b.summary_publisher,
       b.description,
+      src.metadata->>'purchase_url' AS purchase_url,
       b.word_count,
       b.reading_time_minutes,
       b.status,
@@ -172,10 +173,11 @@ export async function loadBook(slug) {
         ARRAY[]::citext[]
       ) AS categories
     FROM books b
+    LEFT JOIN book_sources src ON src.book_id = b.id
     LEFT JOIN book_categories bc ON bc.book_id = b.id
     LEFT JOIN categories c ON c.id = bc.category_id
     WHERE b.slug = ${slug} AND ${visibleBookFilter(sql, "b")}
-    GROUP BY b.id
+    GROUP BY b.id, src.metadata
   `;
   if (!book) return null;
   const sections = await sql`
