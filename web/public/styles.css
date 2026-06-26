@@ -443,6 +443,7 @@ select {
 }
 
 .bookmark-button {
+  position: relative;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
@@ -453,6 +454,16 @@ select {
   background: white;
   color: var(--muted);
   font-size: 18px;
+}
+
+.bookmark-button::before {
+  content: "";
+  width: 15px;
+  height: 22px;
+  border: 3px solid currentColor;
+  border-bottom: 0;
+  border-radius: 5px 5px 2px 2px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 68%, 0 100%);
 }
 
 .bookmark-button.saved {
@@ -480,9 +491,45 @@ select {
 .card-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
   margin-top: auto;
+}
+
+.progress-ring {
+  --progress-angle: 0deg;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background:
+    conic-gradient(var(--teal-700) var(--progress-angle), #e9f0f4 0);
+  color: var(--navy-900);
+  font-size: 10px;
+  font-weight: 950;
+  box-shadow: inset 0 0 0 1px rgba(7, 27, 77, 0.05);
+  transition: background 280ms ease, transform 180ms ease;
+}
+
+.progress-ring::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: inherit;
+  background: white;
+}
+
+.progress-ring span {
+  position: relative;
+  z-index: 1;
+}
+
+.book-card:hover .progress-ring,
+.reader-toolbar:hover .progress-ring {
+  transform: scale(1.04);
 }
 
 .tag-row {
@@ -627,7 +674,7 @@ select {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: min(360px, calc(100vw - 32px));
+  width: auto;
   padding: 9px;
   border: 1px solid rgba(220, 232, 238, 0.92);
   border-radius: 22px;
@@ -753,6 +800,12 @@ select {
   min-width: 80px;
 }
 
+.reader-progress-ring {
+  width: 44px;
+  height: 44px;
+  font-size: 10px;
+}
+
 .reader-toolbar .progress-track {
   height: 7px;
 }
@@ -766,22 +819,47 @@ select {
 }
 
 .reader-toolbar .reader-action {
-  min-height: 38px;
-  padding: 0 12px;
+  min-height: 40px;
+  padding: 0;
   border-radius: 14px;
   white-space: nowrap;
   font-size: 13px;
 }
 
+.icon-action {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+}
+
+.highlight-action::before {
+  content: "";
+  width: 22px;
+  height: 13px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #f6c116 0 42%, #344d59 42% 72%, #eef3f8 72%);
+  transform: rotate(-42deg);
+  box-shadow: 0 10px 0 -6px #f6c116;
+}
+
+.highlight-action::after {
+  content: "";
+  position: absolute;
+  width: 24px;
+  height: 4px;
+  right: 7px;
+  bottom: 7px;
+  border-radius: 999px;
+  background: #f6c116;
+}
+
 .reader-toolbar .bookmark-button {
-  display: inline-flex;
-  width: auto;
-  min-width: 88px;
-  height: 38px;
-  padding: 0 12px;
-  gap: 6px;
-  white-space: nowrap;
-  font-size: 13px;
+  width: 40px;
+  min-width: 0;
+  height: 40px;
+  padding: 0;
 }
 
 .reader-body {
@@ -980,20 +1058,22 @@ select {
   .reader-toolbar {
     right: 12px;
     bottom: calc(88px + var(--safe-bottom));
-    width: min(336px, calc(100vw - 24px));
+    width: auto;
     gap: 7px;
     padding: 8px;
     border-radius: 20px;
   }
 
   .reader-toolbar .reader-action {
-    min-height: 36px;
-    padding: 0 10px;
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0;
     font-size: 12px;
   }
 
   .reader-toolbar .bookmark-button {
-    min-width: 76px;
+    min-width: 0;
   }
 
   .bottom-nav {

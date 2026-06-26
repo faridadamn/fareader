@@ -333,7 +333,6 @@ function bookCard(book) {
           ${escapeHtml(initials(book.title))}
         </button>
         <button type="button" class="bookmark-button ${saved ? "saved" : ""}" data-bookmark="${escapeHtml(book.slug)}" aria-label="${saved ? "Hapus bookmark" : "Simpan bookmark"}">
-          ${saved ? "▰" : "▱"}
         </button>
       </div>
       <div>
@@ -345,10 +344,7 @@ function bookCard(book) {
         ${book.status !== "published" ? tag("Preview", "preview") : ""}
       </div>
       <div class="card-footer">
-        <div class="reader-progress" aria-label="Progress ${percent}%">
-          <div class="progress-track"><span class="progress-bar" style="width:${percent}%"></span></div>
-        </div>
-        <span class="muted">${percent}%</span>
+        ${progressRing(percent)}
       </div>
       <button type="button" class="primary-button" data-open="${escapeHtml(book.slug)}">
         ${hasStarted(book.slug) ? "Lanjutkan" : "Mulai baca"}
@@ -514,13 +510,9 @@ function renderReader(book) {
             </div>
           </div>
           <div class="reader-toolbar">
-            <div class="reader-progress">
-              <div class="progress-track"><span class="progress-bar" style="width:${percent}%"></span></div>
-            </div>
-            <span class="muted reader-progress-label">${percent}%</span>
-            <button type="button" class="reader-action" data-create-highlight>Highlight</button>
-            <button type="button" class="reader-action bookmark-button ${saved ? "saved" : ""}" data-reader-bookmark="${escapeHtml(book.slug)}">
-              ${saved ? "▰ Tersimpan" : "▱ Simpan"}
+            ${progressRing(percent, "reader-progress-ring")}
+            <button type="button" class="reader-action icon-action highlight-action" data-create-highlight aria-label="Highlight teks" title="Highlight teks"></button>
+            <button type="button" class="reader-action icon-action bookmark-button ${saved ? "saved" : ""}" data-reader-bookmark="${escapeHtml(book.slug)}" aria-label="${saved ? "Hapus bookmark" : "Simpan bookmark"}" title="${saved ? "Hapus bookmark" : "Simpan bookmark"}">
             </button>
           </div>
         </header>
@@ -569,15 +561,28 @@ function setReaderSection(book, index) {
 
 function updateReaderProgressUI(book, sectionIndex) {
   const percent = Math.min(100, Math.round(((sectionIndex + 1) / book.sections.length) * 100));
-  elements.reader.querySelector(".reader-toolbar .progress-bar")?.style.setProperty("width", `${percent}%`);
-  const label = elements.reader.querySelector(".reader-progress-label");
-  if (label) label.textContent = `${percent}%`;
+  const ring = elements.reader.querySelector(".reader-toolbar .progress-ring");
+  if (ring) {
+    ring.style.setProperty("--progress-angle", `${percent * 3.6}deg`);
+    ring.setAttribute("aria-label", `Progress ${percent}%`);
+    const label = ring.querySelector("span");
+    if (label) label.textContent = `${percent}%`;
+  }
   elements.reader.querySelectorAll("[data-section]").forEach((button) => {
     button.classList.toggle("active", Number(button.dataset.section) === sectionIndex);
   });
   elements.reader.querySelectorAll("[data-reader-section]").forEach((section) => {
     section.classList.toggle("active", Number(section.dataset.readerSection) === sectionIndex);
   });
+}
+
+function progressRing(percent, extraClass = "") {
+  const value = Math.max(0, Math.min(100, Number(percent) || 0));
+  return `
+    <span class="progress-ring ${extraClass}" style="--progress-angle:${value * 3.6}deg" aria-label="Progress ${value}%">
+      <span>${value}%</span>
+    </span>
+  `;
 }
 
 function setupReaderScrollTracking(book) {
