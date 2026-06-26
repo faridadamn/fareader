@@ -1,28 +1,21 @@
 import {
   handleOptions,
-  loadBook,
   readJsonBody,
   requireAdmin,
   sendError,
   sendJson,
-  updateBookMetadata,
+  updateSection,
 } from "../../_admin-data.js";
 
 export default async function handler(request, response) {
   if (handleOptions(request, response)) return;
   if (!requireAdmin(request, response)) return;
   try {
-    if (!["GET", "PATCH"].includes(request.method)) {
+    if (request.method !== "PATCH") {
       return sendJson(request, response, 405, { error: "Method not allowed" });
     }
-    const slug = String(request.query.slug || "");
-    if (request.method === "PATCH") {
-      await updateBookMetadata(slug, await readJsonBody(request));
-    }
-    const book = await loadBook(slug);
-    return book
-      ? sendJson(request, response, 200, book)
-      : sendJson(request, response, 404, { error: "Buku tidak ditemukan." });
+    await updateSection(String(request.query.sectionId || ""), await readJsonBody(request));
+    return sendJson(request, response, 200, { ok: true });
   } catch (error) {
     return sendError(request, response, error);
   }

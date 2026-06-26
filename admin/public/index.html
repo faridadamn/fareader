@@ -85,6 +85,32 @@
       <p class="description" data-role="description"></p>
       <div class="tag-row" data-role="categories"></div>
 
+      <section class="edit-panel">
+        <h3>Edit metadata buku</h3>
+        <div class="edit-grid">
+          <label>
+            Judul
+            <input data-role="bookTitleInput" type="text">
+          </label>
+          <label>
+            Penulis
+            <input data-role="bookAuthorInput" type="text">
+          </label>
+          <label>
+            Jumlah halaman
+            <input data-role="bookPageCountInput" type="number" min="0">
+          </label>
+        </div>
+        <label>
+          Deskripsi
+          <textarea data-role="bookDescriptionInput" rows="3"></textarea>
+        </label>
+        <div class="save-row">
+          <span data-role="metadataSaveStatus"></span>
+          <button type="button" data-role="saveMetadata" class="primary-button">Simpan metadata</button>
+        </div>
+      </section>
+
       <section class="issues-panel">
         <h3>Quality gate</h3>
         <div data-role="issues"></div>
@@ -123,6 +149,30 @@
           <h3>Struktur rangkuman</h3>
           <span data-role="sectionCount"></span>
         </div>
+        <form data-role="newSectionForm" class="new-section-form">
+          <div class="section-form-grid">
+            <label>
+              Urutan
+              <input name="order_index" type="number" min="0" placeholder="Otomatis">
+            </label>
+            <label>
+              Judul bagian baru
+              <input name="title" type="text" placeholder="Contoh: Ide utama">
+            </label>
+            <label>
+              Label heading
+              <input name="heading_label" type="text" placeholder="Opsional">
+            </label>
+          </div>
+          <label>
+            Isi bagian baru
+            <textarea name="content" rows="5" placeholder="Tulis isi rangkuman bagian ini…"></textarea>
+          </label>
+          <div class="save-row">
+            <span data-role="newSectionStatus"></span>
+            <button type="submit" class="primary-button">Tambah bagian</button>
+          </div>
+        </form>
         <div data-role="sections"></div>
       </section>
     </article>

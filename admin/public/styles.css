@@ -164,10 +164,20 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .metadata-item strong { display: block; margin-top: 4px; font-size: 14px; }
 .description { max-width: 850px; color: #57534c; line-height: 1.6; }
 
-.issues-panel, .review-panel, .sections-panel {
+.edit-panel, .issues-panel, .review-panel, .sections-panel {
   margin-top: 26px;
   padding-top: 24px;
   border-top: 1px solid var(--line);
+}
+.edit-panel {
+  display: grid;
+  gap: 12px;
+}
+.edit-grid, .section-form-grid {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 160px;
+  gap: 10px;
+  max-width: 900px;
 }
 .issue {
   padding: 12px 14px;
@@ -216,6 +226,36 @@ button {
 .checkbox-label input { width: 17px; height: 17px; }
 
 .section-heading { display: flex; justify-content: space-between; align-items: baseline; color: var(--muted); }
+.new-section-form {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0 18px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f7f4ed;
+}
+.section-editor {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.section-editor-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink);
+}
+.section-editor-header span {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
 .section-card { margin-bottom: 9px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .section-card summary { padding: 13px 15px; cursor: pointer; font-weight: 800; }
 .section-card p { padding: 0 15px 16px; margin: 0; color: #5c5851; line-height: 1.7; white-space: pre-line; }
@@ -227,6 +267,7 @@ button {
   .book-list { max-height: 360px; }
   .detail { max-height: none; }
   .metadata-grid { grid-template-columns: repeat(2, 1fr); }
+  .edit-grid, .section-form-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {

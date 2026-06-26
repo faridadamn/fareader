@@ -160,6 +160,36 @@ function renderDetail(book) {
   }));
   find("categories").replaceChildren(...book.categories.map((value) => badge(value)));
 
+  const bookTitleInput = find("bookTitleInput");
+  const bookAuthorInput = find("bookAuthorInput");
+  const bookPageCountInput = find("bookPageCountInput");
+  const bookDescriptionInput = find("bookDescriptionInput");
+  const metadataSaveStatus = find("metadataSaveStatus");
+  bookTitleInput.value = book.title || "";
+  bookAuthorInput.value = book.original_author || "";
+  bookPageCountInput.value = book.page_count || 0;
+  bookDescriptionInput.value = book.description || "";
+  find("saveMetadata").addEventListener("click", async () => {
+    metadataSaveStatus.textContent = "Menyimpan…";
+    try {
+      const updated = await getJson(`/books/${encodeURIComponent(book.slug)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: bookTitleInput.value,
+          original_author: bookAuthorInput.value,
+          page_count: bookPageCountInput.value,
+          description: bookDescriptionInput.value,
+        }),
+      });
+      metadataSaveStatus.textContent = "Tersimpan";
+      await Promise.all([loadStats(), loadBooks()]);
+      renderDetail(updated);
+    } catch (error) {
+      metadataSaveStatus.textContent = error.message;
+    }
+  });
+
   const issues = find("issues");
   if (!book.quality.issues.length) {
     issues.innerHTML = `<p class="no-issues">Tidak ada issue pemblokir dari pipeline.</p>`;
@@ -213,19 +243,93 @@ function renderDetail(book) {
   });
 
   find("sectionCount").textContent = `${book.sections.length} bagian`;
-  find("sections").replaceChildren(...book.sections.map((section, index) => {
-    const details = document.createElement("details");
-    details.className = "section-card";
-    if (index === 0) details.open = true;
-    const summary = document.createElement("summary");
-    summary.textContent = `${index + 1}. ${section.title} · ${formatNumber.format(section.word_count)} kata`;
-    const paragraph = document.createElement("p");
-    paragraph.textContent = section.content;
-    details.append(summary, paragraph);
-    return details;
-  }));
+  const newSectionForm = find("newSectionForm");
+  const newSectionStatus = find("newSectionStatus");
+  newSectionForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    newSectionStatus.textContent = "Menambahkan…";
+    const formData = new FormData(newSectionForm);
+    try {
+      const updated = await getJson(`/books/${encodeURIComponent(book.slug)}/sections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sectionPayloadFromForm(formData)),
+      });
+      newSectionStatus.textContent = "Bagian ditambahkan";
+      await Promise.all([loadStats(), loadBooks()]);
+      renderDetail(updated);
+    } catch (error) {
+      newSectionStatus.textContent = error.message;
+    }
+  });
+  find("sections").replaceChildren(...book.sections.map((section, index) => (
+    createSectionEditor(section, index, book.slug)
+  )));
 
   elements.detail.replaceChildren(content);
+}
+
+function sectionPayloadFromForm(formData) {
+  const orderIndex = formData.get("order_index");
+  return {
+    order_index: orderIndex === "" ? undefined : Number(orderIndex),
+    title: formData.get("title"),
+    heading_label: formData.get("heading_label"),
+    content: formData.get("content"),
+  };
+}
+
+function createSectionEditor(section, index, slug) {
+  const form = document.createElement("form");
+  form.className = "section-editor";
+  form.innerHTML = `
+    <div class="section-editor-header">
+      <strong>${index + 1}. ${escapeHtml(section.title)}</strong>
+      <span>${formatNumber.format(section.word_count)} kata</span>
+    </div>
+    <div class="section-form-grid">
+      <label>
+        Urutan
+        <input name="order_index" type="number" min="0" value="${Number(section.order_index)}">
+      </label>
+      <label>
+        Judul
+        <input name="title" type="text" value="${escapeHtml(section.title)}">
+      </label>
+      <label>
+        Label heading
+        <input name="heading_label" type="text" value="${escapeHtml(section.heading_label || "")}">
+      </label>
+    </div>
+    <label>
+      Isi bagian
+      <textarea name="content" rows="10">${escapeHtml(section.content)}</textarea>
+    </label>
+    <div class="save-row">
+      <span data-role="sectionStatus"></span>
+      <button type="submit" class="primary-button">Simpan bagian</button>
+    </div>
+  `;
+  const status = form.querySelector('[data-role="sectionStatus"]');
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    status.textContent = "Menyimpan…";
+    try {
+      const formData = new FormData(form);
+      await getJson(`/sections/${encodeURIComponent(section.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sectionPayloadFromForm(formData)),
+      });
+      status.textContent = "Tersimpan";
+      const updated = await getJson(`/books/${encodeURIComponent(slug)}`);
+      await Promise.all([loadStats(), loadBooks()]);
+      renderDetail(updated);
+    } catch (error) {
+      status.textContent = error.message;
+    }
+  });
+  return form;
 }
 
 elements.search.addEventListener("input", () => {

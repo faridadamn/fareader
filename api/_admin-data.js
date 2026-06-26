@@ -22,7 +22,7 @@ export function applyCors(request, response) {
   const origin = request.headers.origin;
   if (origin) response.setHeader("Access-Control-Allow-Origin", origin);
   response.setHeader("Vary", "Origin");
-  response.setHeader("Access-Control-Allow-Methods", "GET, PATCH, OPTIONS");
+  response.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
   response.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-Password");
 }
 
@@ -103,6 +103,33 @@ function mapBook(row) {
       updated_at: row.reviewed_at || null,
     },
   };
+}
+
+function countWords(text) {
+  const matches = String(text || "").trim().match(/\S+/g);
+  return matches ? matches.length : 0;
+}
+
+function cleanText(value, maxLength = 100000) {
+  return String(value ?? "").trim().slice(0, maxLength);
+}
+
+async function refreshBookStats(tx, bookId) {
+  const [stats] = await tx`
+    SELECT
+      coalesce(sum(word_count), 0)::int AS word_count,
+      count(*)::int AS section_count
+    FROM book_sections
+    WHERE book_id = ${bookId}
+  `;
+  const wordCount = Number(stats.word_count || 0);
+  await tx`
+    UPDATE books
+    SET word_count = ${wordCount},
+        reading_time_minutes = greatest(1, ceil(${wordCount}::numeric / 200)::int),
+        updated_at = now()
+    WHERE id = ${bookId}
+  `;
 }
 
 export async function loadStats() {
@@ -330,6 +357,223 @@ export async function reviewBook(slug, payload) {
           rights_notes: rightsNotes,
           notes,
         })}
+      )
+    `;
+  });
+}
+
+export async function updateBookMetadata(slug, payload) {
+  const sql = getSql();
+  return sql.begin(async (tx) => {
+    const [current] = await tx`
+      SELECT id, title, original_author, description, page_count
+      FROM books
+      WHERE slug = ${slug}
+      FOR UPDATE
+    `;
+    if (!current) {
+      throw Object.assign(new Error("Buku tidak ditemukan."), {
+        statusCode: 404,
+      });
+    }
+
+    const title = cleanText(payload.title, 500);
+    if (!title) {
+      throw Object.assign(new Error("Judul buku wajib diisi."), {
+        statusCode: 400,
+      });
+    }
+    const originalAuthor = cleanText(payload.original_author, 500) || null;
+    const description = cleanText(payload.description, 5000) || null;
+    const pageCount = Math.max(0, Number(payload.page_count || 0));
+
+    await tx`
+      UPDATE books
+      SET title = ${title},
+          original_author = ${originalAuthor},
+          description = ${description},
+          page_count = ${pageCount},
+          updated_at = now()
+      WHERE id = ${current.id}
+    `;
+    await tx`
+      INSERT INTO content_audit_log (book_id, action, before_data, after_data)
+      VALUES (
+        ${current.id},
+        'admin_metadata_update',
+        ${tx.json(current)},
+        ${tx.json({ title, original_author: originalAuthor, description, page_count: pageCount })}
+      )
+    `;
+  });
+}
+
+export async function createSection(slug, payload) {
+  const sql = getSql();
+  return sql.begin(async (tx) => {
+    const [book] = await tx`
+      SELECT id
+      FROM books
+      WHERE slug = ${slug}
+      FOR UPDATE
+    `;
+    if (!book) {
+      throw Object.assign(new Error("Buku tidak ditemukan."), {
+        statusCode: 404,
+      });
+    }
+
+    const title = cleanText(payload.title, 500);
+    if (!title) {
+      throw Object.assign(new Error("Judul bagian wajib diisi."), {
+        statusCode: 400,
+      });
+    }
+    const headingLabel = cleanText(payload.heading_label, 200) || null;
+    const content = cleanText(payload.content, 200000);
+    const [maxRow] = await tx`
+      SELECT coalesce(max(order_index), -1)::int AS max_order
+      FROM book_sections
+      WHERE book_id = ${book.id}
+    `;
+    const maxOrder = Number(maxRow.max_order);
+    const requestedOrder = Number.isFinite(Number(payload.order_index))
+      ? Math.max(0, Number(payload.order_index))
+      : maxOrder + 1;
+    const orderIndex = Math.min(requestedOrder, maxOrder + 1);
+
+    await tx`
+      UPDATE book_sections
+      SET order_index = order_index + 1000000
+      WHERE book_id = ${book.id} AND order_index >= ${orderIndex}
+    `;
+    await tx`
+      UPDATE book_sections
+      SET order_index = order_index - 999999
+      WHERE book_id = ${book.id} AND order_index >= 1000000
+    `;
+    const [section] = await tx`
+      INSERT INTO book_sections (
+        book_id, order_index, title, heading_label, content, word_count
+      )
+      VALUES (
+        ${book.id},
+        ${orderIndex},
+        ${title},
+        ${headingLabel},
+        ${content},
+        ${countWords(content)}
+      )
+      RETURNING id, order_index, title, heading_label, content, word_count
+    `;
+    await refreshBookStats(tx, book.id);
+    await tx`
+      INSERT INTO content_audit_log (book_id, action, before_data, after_data)
+      VALUES (
+        ${book.id},
+        'admin_section_create',
+        null,
+        ${tx.json(section)}
+      )
+    `;
+  });
+}
+
+export async function updateSection(sectionId, payload) {
+  const sql = getSql();
+  return sql.begin(async (tx) => {
+    const [current] = await tx`
+      SELECT id, book_id, order_index, title, heading_label, content, word_count
+      FROM book_sections
+      WHERE id = ${sectionId}
+      FOR UPDATE
+    `;
+    if (!current) {
+      throw Object.assign(new Error("Bagian tidak ditemukan."), {
+        statusCode: 404,
+      });
+    }
+
+    const title = cleanText(payload.title, 500);
+    if (!title) {
+      throw Object.assign(new Error("Judul bagian wajib diisi."), {
+        statusCode: 400,
+      });
+    }
+    const headingLabel = cleanText(payload.heading_label, 200) || null;
+    const content = cleanText(payload.content, 200000);
+    const [maxRow] = await tx`
+      SELECT max(order_index)::int AS max_order
+      FROM book_sections
+      WHERE book_id = ${current.book_id}
+    `;
+    const maxOrder = Number(maxRow.max_order || 0);
+    const oldOrder = Number(current.order_index);
+    const nextOrder = Math.min(
+      maxOrder,
+      Math.max(0, Number(payload.order_index ?? oldOrder)),
+    );
+
+    if (nextOrder !== oldOrder) {
+      const temporaryOrder = maxOrder + 2000000;
+      await tx`
+        UPDATE book_sections
+        SET order_index = ${temporaryOrder}
+        WHERE id = ${current.id}
+      `;
+      if (nextOrder > oldOrder) {
+        await tx`
+          UPDATE book_sections
+          SET order_index = order_index + 1000000
+          WHERE book_id = ${current.book_id}
+            AND order_index > ${oldOrder}
+            AND order_index <= ${nextOrder}
+        `;
+        await tx`
+          UPDATE book_sections
+          SET order_index = order_index - 1000001
+          WHERE book_id = ${current.book_id}
+            AND order_index > 1000000
+            AND order_index < ${temporaryOrder}
+        `;
+      } else {
+        await tx`
+          UPDATE book_sections
+          SET order_index = order_index + 1000000
+          WHERE book_id = ${current.book_id}
+            AND order_index >= ${nextOrder}
+            AND order_index < ${oldOrder}
+        `;
+        await tx`
+          UPDATE book_sections
+          SET order_index = order_index - 999999
+          WHERE book_id = ${current.book_id}
+            AND order_index >= 1000000
+            AND order_index < ${temporaryOrder}
+        `;
+      }
+    }
+
+    const [section] = await tx`
+      UPDATE book_sections
+      SET order_index = ${nextOrder},
+          title = ${title},
+          heading_label = ${headingLabel},
+          content = ${content},
+          word_count = ${countWords(content)},
+          content_version = content_version + 1,
+          updated_at = now()
+      WHERE id = ${current.id}
+      RETURNING id, order_index, title, heading_label, content, word_count
+    `;
+    await refreshBookStats(tx, current.book_id);
+    await tx`
+      INSERT INTO content_audit_log (book_id, action, before_data, after_data)
+      VALUES (
+        ${current.book_id},
+        'admin_section_update',
+        ${tx.json(current)},
+        ${tx.json(section)}
       )
     `;
   });
