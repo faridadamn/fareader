@@ -7,7 +7,10 @@ const projectDirectory = path.resolve(
   "..",
 );
 const sourceDirectory = path.join(projectDirectory, "web", "public");
+const adminSourceDirectory = path.join(projectDirectory, "admin", "public");
 const outputDirectory = path.join(projectDirectory, "public");
+const adminOutputDirectory = path.join(outputDirectory, "admin");
 
 await rm(outputDirectory, { recursive: true, force: true });
 await cp(sourceDirectory, outputDirectory, { recursive: true });
+await cp(adminSourceDirectory, adminOutputDirectory, { recursive: true });

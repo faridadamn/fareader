@@ -83,6 +83,14 @@ npm run admin
 
 Buka `http://127.0.0.1:4175`. Panel admin membaca dan menyimpan keputusan review langsung ke Supabase melalui `DATABASE_URL` di file `.env`.
 
+Saat dipublish ke Vercel, panel admin tersedia di:
+
+```text
+https://domain-vercel-kamu.vercel.app/admin/
+```
+
+API admin tersedia di `/api/admin/*` dan memakai environment yang sama dengan reader publik. Set `ADMIN_PASSWORD` di Vercel agar data review tidak bisa dibuka bebas. Browser akan meminta password saat panel admin pertama kali membaca data.
+
 ## Public reader app
 
 Mode publik hanya menampilkan buku dengan status `published`:
@@ -196,6 +204,7 @@ Di Vercel:
 ```text
 DATABASE_URL=postgresql://...
 CORS_ORIGIN=*
+ADMIN_PASSWORD=password-admin-yang-kuat
 ```
 
 Opsional untuk melihat buku `ready_for_review` saat preview:
@@ -209,6 +218,7 @@ Setelah deploy, cek:
 ```text
 https://domain-vercel-kamu.vercel.app/api/health
 https://domain-vercel-kamu.vercel.app/api/meta
+https://domain-vercel-kamu.vercel.app/admin/
 ```
 
 Untuk APK mobile, isi domain Vercel di `web/public/config.js`, jalankan `npm run cap:sync`, lalu build ulang dengan `BUILD-ANDROID.cmd`.

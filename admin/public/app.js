@@ -6,6 +6,9 @@ const state = {
   searchTimer: null,
 };
 
+const apiBase = window.FA_ADMIN_API_BASE
+  || (location.port === "4175" ? "/api" : "/api/admin");
+
 const elements = {
   stats: document.querySelector("#stats"),
   search: document.querySelector("#searchInput"),
@@ -23,8 +26,17 @@ const elements = {
 const formatNumber = new Intl.NumberFormat("id-ID");
 
 async function getJson(url, options) {
-  const response = await fetch(url, options);
+  const headers = new Headers(options?.headers || {});
+  const storedPassword = sessionStorage.getItem("fa-reader-admin-password");
+  if (storedPassword) headers.set("X-Admin-Password", storedPassword);
+  const response = await fetch(`${apiBase}${url}`, { ...options, headers });
   const payload = await response.json();
+  if (response.status === 401 && payload.code === "ADMIN_PASSWORD_REQUIRED") {
+    const password = prompt("Masukkan password admin");
+    if (!password) throw new Error("Password admin diperlukan.");
+    sessionStorage.setItem("fa-reader-admin-password", password);
+    return getJson(url, options);
+  }
   if (!response.ok) throw new Error(payload.error || "Permintaan gagal.");
   return payload;
 }
@@ -37,7 +49,7 @@ function badge(text, type = "") {
 }
 
 async function loadStats() {
-  const stats = await getJson("/api/stats");
+  const stats = await getJson("/stats");
   const cards = [
     ["Total katalog", stats.total],
     ["Siap direview", stats.ready_for_review],
@@ -61,7 +73,7 @@ async function loadBooks() {
     page: state.page,
     pageSize: 25,
   });
-  const payload = await getJson(`/api/books?${params}`);
+  const payload = await getJson(`/books?${params}`);
   state.totalPages = payload.totalPages;
   elements.resultCount.textContent = `${formatNumber.format(payload.total)} buku`;
   elements.pageLabel.textContent = `${payload.page} / ${payload.totalPages}`;
@@ -107,7 +119,7 @@ function escapeHtml(value) {
 async function selectBook(slug) {
   state.selectedSlug = slug;
   await loadBooks();
-  const book = await getJson(`/api/books/${encodeURIComponent(slug)}`);
+  const book = await getJson(`/books/${encodeURIComponent(slug)}`);
   renderDetail(book);
 }
 
@@ -183,7 +195,7 @@ function renderDetail(book) {
   find("save").addEventListener("click", async () => {
     saveStatus.textContent = "Menyimpan…";
     try {
-      await getJson(`/api/books/${encodeURIComponent(book.slug)}/review`, {
+      await getJson(`/books/${encodeURIComponent(book.slug)}/review`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -1,0 +1,336 @@
+import postgres from "postgres";
+
+const adminPassword = process.env.ADMIN_PASSWORD || "";
+let sqlClient;
+
+export function getSql() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL belum diset di environment Vercel.");
+  }
+  if (!sqlClient) {
+    sqlClient = postgres(process.env.DATABASE_URL, {
+      ssl: { rejectUnauthorized: false },
+      max: 5,
+      connect_timeout: 20,
+      idle_timeout: 30,
+    });
+  }
+  return sqlClient;
+}
+
+export function applyCors(request, response) {
+  const origin = request.headers.origin;
+  if (origin) response.setHeader("Access-Control-Allow-Origin", origin);
+  response.setHeader("Vary", "Origin");
+  response.setHeader("Access-Control-Allow-Methods", "GET, PATCH, OPTIONS");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Admin-Password");
+}
+
+export function sendJson(request, response, status, payload) {
+  applyCors(request, response);
+  response.setHeader("Cache-Control", "no-store");
+  response.status(status).json(payload);
+}
+
+export function handleOptions(request, response) {
+  if (request.method !== "OPTIONS") return false;
+  applyCors(request, response);
+  response.status(204).end();
+  return true;
+}
+
+export function requireAdmin(request, response) {
+  if (!adminPassword) return true;
+  if (request.headers["x-admin-password"] === adminPassword) return true;
+  sendJson(request, response, 401, {
+    error: "Password admin diperlukan.",
+    code: "ADMIN_PASSWORD_REQUIRED",
+  });
+  return false;
+}
+
+export function requestUrl(request) {
+  return new URL(request.url, `https://${request.headers.host || "localhost"}`);
+}
+
+export function sendError(request, response, error) {
+  sendJson(request, response, error.statusCode || 500, {
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
+
+export async function readJsonBody(request) {
+  if (request.body && typeof request.body === "object") return request.body;
+  if (typeof request.body === "string") {
+    return request.body ? JSON.parse(request.body) : {};
+  }
+  return new Promise((resolve, reject) => {
+    let body = "";
+    request.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 1_000_000) {
+        reject(Object.assign(new Error("Payload terlalu besar."), { statusCode: 413 }));
+      }
+    });
+    request.on("end", () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (error) {
+        reject(Object.assign(error, { statusCode: 400 }));
+      }
+    });
+    request.on("error", reject);
+  });
+}
+
+function decisionFromStatus(status) {
+  if (status === "published") return "published";
+  if (status === "rejected") return "rejected";
+  if (status === "ready_for_review") return "approved";
+  return "pending";
+}
+
+function mapBook(row) {
+  return {
+    ...row,
+    page_count: Number(row.page_count),
+    word_count: Number(row.word_count),
+    reading_time_minutes: Number(row.reading_time_minutes),
+    section_count: Number(row.section_count || 0),
+    review: {
+      decision: decisionFromStatus(row.status),
+      notes: row.review_notes || "",
+      updated_at: row.reviewed_at || null,
+    },
+  };
+}
+
+export async function loadStats() {
+  const sql = getSql();
+  const [row] = await sql`
+    SELECT
+      count(*)::int AS total,
+      count(*) FILTER (WHERE status = 'ready_for_review')::int
+        AS ready_for_review,
+      count(*) FILTER (WHERE status = 'needs_review')::int AS needs_review,
+      count(*) FILTER (WHERE status = 'published')::int AS published,
+      count(*) FILTER (WHERE status = 'rejected')::int AS rejected,
+      count(*) FILTER (WHERE rights_verified)::int AS rights_verified
+    FROM books
+  `;
+  return row;
+}
+
+export async function loadBooks(url) {
+  const sql = getSql();
+  const query = (url.searchParams.get("q") || "").trim();
+  const status = url.searchParams.get("status") || "all";
+  const decision = url.searchParams.get("decision") || "all";
+  const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+  const pageSize = Math.min(
+    100,
+    Math.max(10, Number(url.searchParams.get("pageSize") || 25)),
+  );
+  const offset = (page - 1) * pageSize;
+  const pattern = `%${query}%`;
+  const decisionStatuses = {
+    pending: ["needs_review"],
+    approved: ["ready_for_review"],
+    published: ["published"],
+    rejected: ["rejected"],
+  };
+  const queryFilter = query
+    ? sql`(b.title ILIKE ${pattern} OR b.original_author ILIKE ${pattern} OR b.slug ILIKE ${pattern})`
+    : sql`true`;
+  const statusFilter = status !== "all"
+    ? sql`b.status = ${status}`
+    : sql`true`;
+  const decisionFilter = decision !== "all"
+    ? sql`b.status IN ${sql(decisionStatuses[decision] || [decision])}`
+    : sql`true`;
+
+  const [countRow] = await sql`
+    SELECT count(*)::int AS total
+    FROM books b
+    WHERE ${queryFilter} AND ${statusFilter} AND ${decisionFilter}
+  `;
+  const rows = await sql`
+    SELECT
+      b.id,
+      b.slug,
+      b.title,
+      b.original_author,
+      b.page_count,
+      b.word_count,
+      b.reading_time_minutes,
+      b.status,
+      b.rights_verified,
+      coalesce(
+        array_agg(DISTINCT c.name) FILTER (WHERE c.id IS NOT NULL),
+        ARRAY[]::citext[]
+      ) AS categories,
+      count(DISTINCT bs.id)::int AS section_count,
+      count(DISTINCT ci.id) FILTER (WHERE ci.resolved = false)::int
+        AS issue_count
+    FROM books b
+    LEFT JOIN book_sections bs ON bs.book_id = b.id
+    LEFT JOIN book_categories bc ON bc.book_id = b.id
+    LEFT JOIN categories c ON c.id = bc.category_id
+    LEFT JOIN content_issues ci ON ci.book_id = b.id
+    WHERE ${queryFilter} AND ${statusFilter} AND ${decisionFilter}
+    GROUP BY b.id
+    ORDER BY
+      CASE WHEN b.status = 'needs_review' THEN 0 ELSE 1 END,
+      b.title
+    LIMIT ${pageSize}
+    OFFSET ${offset}
+  `;
+  return {
+    items: rows.map(mapBook),
+    page,
+    pageSize,
+    total: countRow.total,
+    totalPages: Math.max(1, Math.ceil(countRow.total / pageSize)),
+  };
+}
+
+export async function loadBook(slug) {
+  const sql = getSql();
+  const [book] = await sql`
+    SELECT
+      b.*,
+      src.source_url,
+      coalesce(
+        array_agg(DISTINCT c.name) FILTER (WHERE c.id IS NOT NULL),
+        ARRAY[]::citext[]
+      ) AS categories,
+      (
+        SELECT after_data->>'notes'
+        FROM content_audit_log
+        WHERE book_id = b.id AND action = 'admin_review'
+        ORDER BY created_at DESC LIMIT 1
+      ) AS review_notes,
+      (
+        SELECT created_at
+        FROM content_audit_log
+        WHERE book_id = b.id AND action = 'admin_review'
+        ORDER BY created_at DESC LIMIT 1
+      ) AS reviewed_at
+    FROM books b
+    LEFT JOIN book_sources src ON src.book_id = b.id
+    LEFT JOIN book_categories bc ON bc.book_id = b.id
+    LEFT JOIN categories c ON c.id = bc.category_id
+    WHERE b.slug = ${slug}
+    GROUP BY b.id, src.source_url
+  `;
+  if (!book) return null;
+  const [sections, issues] = await Promise.all([
+    sql`
+      SELECT id, order_index, title, heading_label, content, word_count,
+             source_page_start, source_page_end
+      FROM book_sections
+      WHERE book_id = ${book.id}
+      ORDER BY order_index
+    `,
+    sql`
+      SELECT id, code, severity, message, resolved, resolution_notes
+      FROM content_issues
+      WHERE book_id = ${book.id}
+      ORDER BY resolved, severity DESC, created_at
+    `,
+  ]);
+  return {
+    ...mapBook({ ...book, section_count: sections.length }),
+    sections,
+    quality: { status: book.status, issues },
+  };
+}
+
+export async function reviewBook(slug, payload) {
+  const sql = getSql();
+  const allowed = ["pending", "approved", "rejected", "published"];
+  if (!allowed.includes(payload.decision)) {
+    throw Object.assign(new Error("Keputusan review tidak valid."), {
+      statusCode: 400,
+    });
+  }
+
+  return sql.begin(async (tx) => {
+    const [current] = await tx`
+      SELECT * FROM books WHERE slug = ${slug} FOR UPDATE
+    `;
+    if (!current) {
+      throw Object.assign(new Error("Buku tidak ditemukan."), {
+        statusCode: 404,
+      });
+    }
+
+    const rightsVerified = Boolean(payload.rights_verified);
+    const rightsNotes = String(payload.rights_notes || "").slice(0, 5000);
+    const notes = String(payload.notes || "").slice(0, 5000);
+    if (payload.decision === "published" && !rightsVerified) {
+      throw Object.assign(
+        new Error("Hak penggunaan wajib diverifikasi sebelum publish."),
+        { statusCode: 400 },
+      );
+    }
+
+    if (["approved", "published"].includes(payload.decision)) {
+      await tx`
+        UPDATE content_issues
+        SET resolved = true,
+            resolution_notes = ${notes || "Diterima saat review admin."},
+            resolved_at = now()
+        WHERE book_id = ${current.id} AND resolved = false
+      `;
+    }
+    const [issueCount] = await tx`
+      SELECT count(*)::int AS count
+      FROM content_issues
+      WHERE book_id = ${current.id} AND resolved = false
+    `;
+    const nextStatus = payload.decision === "published"
+      ? "published"
+      : payload.decision === "rejected"
+        ? "rejected"
+        : payload.decision === "approved"
+          ? "ready_for_review"
+          : issueCount.count > 0
+            ? "needs_review"
+            : "ready_for_review";
+
+    await tx`
+      UPDATE books
+      SET status = ${nextStatus},
+          rights_verified = ${rightsVerified},
+          rights_notes = ${rightsNotes || null},
+          published_at = CASE
+            WHEN ${nextStatus} = 'published' THEN coalesce(published_at, now())
+            ELSE published_at
+          END,
+          updated_at = now()
+      WHERE id = ${current.id}
+    `;
+    await tx`
+      INSERT INTO content_audit_log (
+        book_id, action, before_data, after_data
+      )
+      VALUES (
+        ${current.id},
+        'admin_review',
+        ${tx.json({
+          status: current.status,
+          rights_verified: current.rights_verified,
+          rights_notes: current.rights_notes,
+        })},
+        ${tx.json({
+          decision: payload.decision,
+          status: nextStatus,
+          rights_verified: rightsVerified,
+          rights_notes: rightsNotes,
+          notes,
+        })}
+      )
+    `;
+  });
+}
