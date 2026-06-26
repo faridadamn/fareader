@@ -6,7 +6,7 @@ import {
   reviewBook,
   sendError,
   sendJson,
-} from "../../../_admin-data.js";
+} from "../../../../_admin-data.js";
 
 export default async function handler(request, response) {
   if (handleOptions(request, response)) return;
