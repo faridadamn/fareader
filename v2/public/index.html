@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d2c2a" />
+  <title>FA Reader V2</title>
+  <style>
+    :root { --ink:#123230; --ink2:#44635f; --bg:#f4f8f5; --surface:#fff; --line:#dce8e2; --green:#13755e; --mint:#e5f3ed; --gold:#d89b3f; --danger:#b84949; --radius:20px; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
+    button,input { font:inherit; }
+    header { position:sticky; top:0; z-index:10; backdrop-filter:blur(18px); background:rgba(244,248,245,.9); border-bottom:1px solid var(--line); }
+    .top { max-width:1200px; height:70px; margin:auto; display:flex; align-items:center; justify-content:space-between; padding:0 22px; }
+    .brand { display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:-.03em; }
+    .mark { width:34px; height:34px; display:grid; place-items:center; border-radius:11px; color:#fff; background:linear-gradient(135deg,var(--green),#0d4940); }
+    .nav { display:flex; gap:8px; }
+    .nav button { border:0; border-radius:999px; padding:9px 13px; color:var(--ink2); background:transparent; cursor:pointer; }
+    .nav button.active { color:#fff; background:var(--ink); }
+    main { max-width:1200px; margin:0 auto; padding:34px 22px 74px; }
+    .hero { display:grid; grid-template-columns:1.5fr 1fr; gap:24px; padding:28px; border-radius:28px; background:linear-gradient(135deg,#d9f0e6,#f8ecd8); border:1px solid #cae1d8; }
+    h1 { margin:0 0 8px; font-size:clamp(30px,5vw,54px); line-height:1.04; letter-spacing:-.055em; }
+    p { color:var(--ink2); line-height:1.65; }
+    .stats { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-content:center; }
+    .stat { background:rgba(255,255,255,.72); border:1px solid rgba(255,255,255,.9); border-radius:16px; padding:16px; }
+    .stat strong { display:block; font-size:28px; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; margin:30px 0 16px; }
+    .search { display:flex; flex:1 1 340px; gap:8px; padding:6px 8px 6px 14px; border:1px solid var(--line); background:var(--surface); border-radius:14px; }
+    .search input { flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--ink); }
+    .search button, .btn { border:0; background:var(--green); color:#fff; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:700; }
+    .chips { display:flex; gap:8px; flex-wrap:wrap; }
+    .chip { border:1px solid var(--line); background:var(--surface); color:var(--ink2); padding:8px 11px; border-radius:999px; cursor:pointer; }
+    .grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+    .card { border:1px solid var(--line); background:var(--surface); border-radius:var(--radius); padding:18px; box-shadow:0 8px 22px rgba(14,47,40,.035); cursor:pointer; transition:.16s transform,.16s box-shadow; }
+    .card:hover { transform:translateY(-2px); box-shadow:0 12px 28px rgba(14,47,40,.09); }
+    .eyebrow { color:var(--green); font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+    .card h3 { margin:8px 0; line-height:1.25; letter-spacing:-.025em; }
+    .meta { color:var(--ink2); font-size:13px; }
+    .tag { display:inline-flex; margin:8px 5px 0 0; padding:5px 8px; border-radius:999px; background:var(--mint); color:#1c6656; font-size:12px; }
+    .empty { padding:44px 18px; text-align:center; color:var(--ink2); border:1px dashed var(--line); border-radius:var(--radius); }
+    .reader { max-width:840px; margin:auto; }
+    .back { margin-bottom:16px; background:transparent; color:var(--green); border:0; padding:0; font-weight:800; cursor:pointer; }
+    .article { background:var(--surface); border:1px solid var(--line); border-radius:28px; padding:clamp(22px,6vw,54px); }
+    .article h1 { font-size:clamp(32px,6vw,58px); }
+    .article h2 { margin:36px 0 10px; letter-spacing:-.035em; }
+    .article .content { white-space:pre-wrap; color:#294943; line-height:1.9; }
+    .points { padding-left:20px; color:#294943; line-height:1.7; }
+    .note { margin-top:26px; padding:16px; border-radius:14px; background:#fff8e9; border:1px solid #f0ddb1; }
+    .hidden { display:none !important; }
+    @media(max-width:820px){ .hero{grid-template-columns:1fr}.grid{grid-template-columns:1fr 1fr}.top{padding:0 14px}.nav button{padding:8px 9px;font-size:13px}main{padding:22px 14px 80px} }
+    @media(max-width:520px){ .grid{grid-template-columns:1fr}.hero{padding:22px}.stats{grid-template-columns:1fr 1fr}.article{padding:24px 18px} }
+  </style>
+</head>
+<body>
+<header><div class="top">
+  <div class="brand"><span class="mark">FA</span><span>FA Reader <small style="color:var(--green)">V2</small></span></div>
+  <nav class="nav"><button class="active" data-view="home">Beranda</button><button data-view="reader">Buku</button><button data-view="knowledge">Knowledge</button></nav>
+</div></header>
+<main>
+  <section id="homeView">
+    <div class="hero"><div><div class="eyebrow">Satu ruang belajar</div><h1>Baca buku. Tangkap insight. Simpan pengetahuan.</h1><p>FA Reader V2 menggabungkan katalog rangkuman buku dengan Lexis Knowledge Library dalam menu yang terpisah tetapi satu pengalaman belajar.</p></div><div class="stats"><div class="stat"><strong id="bookCount">—</strong><span>Buku tersedia</span></div><div class="stat"><strong id="topicCount">—</strong><span>Topik pengetahuan</span></div></div></div>
+    <div class="toolbar"><div><div class="eyebrow">Mulai dari sini</div><h2 style="margin:4px 0">Pilih cara belajarmu</h2></div></div>
+    <div class="grid"><article class="card" onclick="showView('reader')"><div class="eyebrow">FA Reader</div><h3>Rangkuman buku</h3><p>Jelajahi ringkasan buku dengan section reader yang nyaman.</p><button class="btn">Buka Buku</button></article><article class="card" onclick="showView('knowledge')"><div class="eyebrow">Lexis Knowledge</div><h3>Topik & catatan</h3><p>Baca insight hasil ekstraksi artikel dan catatan yang terhubung.</p><button class="btn">Buka Knowledge</button></article><article class="card"><div class="eyebrow">Tahap berikutnya</div><h3>Akun & sinkronisasi</h3><p>Progress, bookmark, highlight, dan knowledge note dapat disatukan setelah login diaktifkan.</p></article></div>
+  </section>
+  <section id="listView" class="hidden"><div class="toolbar"><div><div class="eyebrow" id="sectionEyebrow">FA Reader</div><h2 id="sectionTitle" style="margin:4px 0">Buku</h2></div><div class="search"><input id="query" placeholder="Cari judul, penulis, topik, atau insight..." /><button id="searchBtn">Cari</button></div></div><div id="chips" class="chips"></div><div id="items" class="grid" style="margin-top:16px"></div></section>
+  <section id="detailView" class="hidden reader"><button class="back" id="backBtn">← Kembali</button><article class="article" id="detail"></article></section>
+</main>
+<script>
+  const state={ view:'home', mode:'reader', items:[], allTopics:[] };
+  const $=s=>document.querySelector(s);
+  const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;' }[c]));
+  function setNav(view){ document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view)); }
+  function showView(view){ state.view=view; setNav(view); $('#homeView').classList.toggle('hidden',view!=='home'); $('#listView').classList.toggle('hidden',!['reader','knowledge'].includes(view)); $('#detailView').classList.add('hidden'); if(view==='reader') loadBooks(); if(view==='knowledge') loadTopics(); }
+  window.showView=showView;
+  async function api(path){ const r=await fetch(path); if(!r.ok) throw new Error('Gagal memuat data'); return r.json(); }
+  async function loadDashboard(){ try{const data=await api('/api/dashboard'); $('#bookCount').textContent=data.bookCount; $('#topicCount').textContent=data.topicCount;}catch{ $('#bookCount').textContent='?'; $('#topicCount').textContent='?'; } }
+  function renderCards(items,mode){ const holder=$('#items'); if(!items.length){holder.innerHTML='<div class="empty">Belum ada data yang cocok.</div>';return;} holder.innerHTML=items.map(item=> mode==='reader' ? `<article class="card" data-id="${esc(item.slug)}"><div class="eyebrow">${esc(item.original_author||'Buku')}</div><h3>${esc(item.title)}</h3><p>${esc(item.description||'Rangkuman siap dibaca.')}</p><div class="meta">${esc(item.section_count||0)} bagian · ${esc(item.reading_time_minutes||0)} menit</div>${(item.categories||[]).slice(0,3).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</article>` : `<article class="card" data-id="${esc(item.id)}"><div class="eyebrow">Lexis Knowledge</div><h3>${esc(item.title||'Tanpa judul')}</h3><p>${esc((item.points||[])[0]||item.note_content||'Insight belum tersedia.')}</p>${(item.categories||[]).slice(0,3).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</article>`).join(''); holder.querySelectorAll('.card[data-id]').forEach(card=>card.addEventListener('click',()=>openDetail(card.dataset.id,mode))); }
+  async function loadBooks(query=''){ state.mode='reader'; $('#sectionEyebrow').textContent='FA Reader'; $('#sectionTitle').textContent='Rangkuman Buku'; $('#query').placeholder='Cari judul atau penulis...'; $('#chips').innerHTML=''; $('#items').innerHTML='<div class="empty">Memuat buku...</div>'; try{const data=await api('/api/books?q='+encodeURIComponent(query)); state.items=data.items; renderCards(data.items,'reader');}catch(e){$('#items').innerHTML='<div class="empty">Gagal memuat buku.</div>';} }
+  async function loadTopics(query=''){ state.mode='knowledge'; $('#sectionEyebrow').textContent='Lexis Knowledge'; $('#sectionTitle').textContent='Topik & Catatan'; $('#query').placeholder='Cari topik, kategori, atau insight...'; $('#items').innerHTML='<div class="empty">Memuat knowledge...</div>'; try{const data=await api('/api/topics?q='+encodeURIComponent(query)); state.allTopics=data.items; const categories=[...new Set(data.items.flatMap(x=>x.categories||[]))].slice(0,12); $('#chips').innerHTML=categories.map(c=>`<button class="chip" data-category="${esc(c)}">${esc(c)}</button>`).join(''); $('#chips').querySelectorAll('.chip').forEach(b=>b.addEventListener('click',()=>loadTopicsByCategory(b.dataset.category))); renderCards(data.items,'knowledge');}catch(e){$('#items').innerHTML='<div class="empty">Gagal memuat knowledge.</div>';} }
+  async function loadTopicsByCategory(category){ const data=await api('/api/topics?category='+encodeURIComponent(category)); renderCards(data.items,'knowledge'); }
+  async function openDetail(id,mode){ $('#homeView').classList.add('hidden'); $('#listView').classList.add('hidden'); $('#detailView').classList.remove('hidden'); $('#detail').innerHTML='<p>Memuat...</p>'; try{const data=await api(`/api/${mode==='reader'?'books':'topics'}/`+encodeURIComponent(id)); if(mode==='reader'){ $('#detail').innerHTML=`<div class="eyebrow">${esc(data.original_author||'FA Reader')}</div><h1>${esc(data.title)}</h1><p>${esc(data.description||'')}</p><div class="meta">${esc(data.reading_time_minutes||0)} menit · ${esc(data.word_count||0)} kata</div>${(data.sections||[]).map(s=>`<h2>${esc(s.heading_label?`${s.heading_label} — `:'')}${esc(s.title)}</h2><div class="content">${esc(s.content)}</div>`).join('')}`; }else{ $('#detail').innerHTML=`<div class="eyebrow">Lexis Knowledge</div><h1>${esc(data.title||'Tanpa judul')}</h1><div>${(data.categories||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div><h2>Insight</h2><ul class="points">${(data.points||[]).map(p=>`<li>${esc(p)}</li>`).join('')||'<li>Belum ada insight.</li>'}</ul>${data.note_content?`<div class="note"><strong>Catatan</strong><div class="content">${esc(data.note_content)}</div></div>`:''}`; }}catch(e){$('#detail').innerHTML='<p>Data tidak dapat dimuat.</p>';} }
+  document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view))); $('#searchBtn').addEventListener('click',()=>state.mode==='reader'?loadBooks($('#query').value):loadTopics($('#query').value)); $('#query').addEventListener('keydown',e=>{if(e.key==='Enter') $('#searchBtn').click();}); $('#backBtn').addEventListener('click',()=>showView(state.mode));
+  loadDashboard();
+</script>
+</body>
+</html>
