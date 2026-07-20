@@ -129,6 +129,7 @@ function isHtmlContent(value) {
 }
 
 function safeContentUrl(value, { image = false } = {}) {
+  if (typeof value !== "string" || !value.trim()) return "";
   try {
     const url = new URL(value, window.location.origin);
     if (url.protocol === "https:" || (!image && url.protocol === "http:")) {
