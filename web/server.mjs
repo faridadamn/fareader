@@ -99,9 +99,7 @@ async function serveStatic(response, pathname) {
 }
 
 function visibleBookFilter(alias = "b") {
-  return previewMode
-    ? sql`${sql(alias)}.status IN ('published', 'ready_for_review')`
-    : sql`${sql(alias)}.status = 'published'`;
+  return sql`${sql(alias)}.status <> 'rejected'`;
 }
 
 async function loadCategories() {
@@ -211,7 +209,7 @@ async function loadBooks(url) {
     pageSize,
     total: countRow.total,
     totalPages: Math.max(1, Math.ceil(countRow.total / pageSize)),
-    preview: previewMode,
+    preview: false,
   };
 }
 
@@ -332,7 +330,7 @@ async function loadBook(slug) {
     WHERE book_id = (SELECT id FROM books WHERE slug = ${slug})
     ORDER BY order_index
   `;
-  return { ...book, sections, preview: previewMode };
+  return { ...book, sections, preview: false };
 }
 
 const server = createServer(async (request, response) => {
@@ -348,7 +346,7 @@ const server = createServer(async (request, response) => {
       const [row] = await sql`SELECT 1 AS ok`;
       return sendJson(request, response, 200, {
         ok: row.ok === 1,
-        mode: previewMode ? "preview" : "published-only",
+        mode: "public-catalog",
       });
     }
     if (request.method === "GET" && url.pathname === "/api/meta") {
@@ -363,7 +361,7 @@ const server = createServer(async (request, response) => {
       return sendJson(request, response, 200, {
         total: stats[0].total,
         categories,
-        preview: previewMode,
+        preview: false,
       });
     }
     if (request.method === "GET" && url.pathname === "/api/books") {
