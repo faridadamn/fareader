@@ -301,7 +301,7 @@ h1 {
 
 .hero-stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 
@@ -1324,7 +1324,7 @@ select {
     bottom: calc(10px + var(--safe-bottom));
     z-index: 40;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     padding: 8px;
     border: 1px solid var(--line);
     border-radius: 24px;
