@@ -18,6 +18,10 @@ const state = {
   knowledgePage: 1,
   knowledgeTotalPages: 1,
   knowledgeItems: [],
+  booksLoading: false,
+  knowledgeLoading: false,
+  booksHasMore: true,
+  knowledgeHasMore: true,
   activeView: "library",
   selectedSlug: null,
   currentBook: null,
@@ -47,12 +51,10 @@ const elements = {
   highlightList: document.querySelector("#highlightList"),
   knowledgeList: document.querySelector("#knowledgeList"),
   knowledgeMeta: document.querySelector("#knowledgeMeta"),
-  previousKnowledgePage: document.querySelector("#previousKnowledgePage"),
-  nextKnowledgePage: document.querySelector("#nextKnowledgePage"),
-  knowledgePageLabel: document.querySelector("#knowledgePageLabel"),
-  previousPage: document.querySelector("#previousPage"),
-  nextPage: document.querySelector("#nextPage"),
-  pageLabel: document.querySelector("#pageLabel"),
+  bookLoadStatus: document.querySelector("#bookLoadStatus"),
+  bookSentinel: document.querySelector("#bookSentinel"),
+  knowledgeLoadStatus: document.querySelector("#knowledgeLoadStatus"),
+  knowledgeSentinel: document.querySelector("#knowledgeSentinel"),
   reader: document.querySelector("#reader"),
   continuePanel: document.querySelector("#continuePanel"),
   supportModal: document.querySelector("#supportModal"),
@@ -441,56 +443,71 @@ async function loadMeta() {
   updateStats();
 }
 
-async function loadBooks() {
+async function loadBooks({ reset = state.page === 1 } = {}) {
+  if (state.booksLoading) return;
+  state.booksLoading = true;
+  elements.bookLoadStatus.textContent = reset ? "Memuat buku…" : "Memuat buku berikutnya…";
+
   const params = new URLSearchParams({
     q: elements.searchInput.value.trim(),
     category: elements.categoryFilter.value,
     page: state.page,
     pageSize: 18,
   });
-  const payload = await getJson(`/api/books?${params}`);
-  state.libraryItems = payload.items;
-  for (const item of payload.items) {
-    if (state.bookmarks.has(item.slug)) state.bookmarkItems.set(item.slug, item);
-    if (state.progress[item.slug]) state.readingItems.set(item.slug, item);
+
+  try {
+    const payload = await getJson(`/api/books?${params}`);
+    state.libraryItems = reset
+      ? payload.items
+      : [...state.libraryItems, ...payload.items];
+    for (const item of payload.items) {
+      if (state.bookmarks.has(item.slug)) state.bookmarkItems.set(item.slug, item);
+      if (state.progress[item.slug]) state.readingItems.set(item.slug, item);
+    }
+    state.totalPages = payload.totalPages;
+    state.booksHasMore = payload.page < payload.totalPages;
+    elements.resultMeta.textContent = `${formatNumber.format(payload.total)} hasil`;
+    elements.bookLoadStatus.textContent = state.booksHasMore
+      ? `${formatNumber.format(state.libraryItems.length)} buku dimuat · scroll untuk lanjut`
+      : `Semua ${formatNumber.format(payload.total)} buku sudah dimuat`;
+    elements.bookSentinel.classList.toggle("is-hidden", !state.booksHasMore);
+    renderBookLists();
+    renderContinuePanel();
+  } finally {
+    state.booksLoading = false;
   }
-  state.totalPages = payload.totalPages;
-  elements.resultMeta.textContent = `${formatNumber.format(payload.total)} hasil`;
-  elements.pageLabel.textContent = `${payload.page} / ${payload.totalPages}`;
-  elements.previousPage.disabled = payload.page <= 1;
-  elements.nextPage.disabled = payload.page >= payload.totalPages;
-  renderBookLists();
-  renderContinuePanel();
 }
 
+async function loadKnowledge({ reset = state.knowledgePage === 1 } = {}) {
+  if (state.knowledgeLoading) return;
+  state.knowledgeLoading = true;
+  elements.knowledgeLoadStatus.textContent = reset
+    ? "Memuat knowledge…"
+    : "Memuat knowledge berikutnya…";
 
-async function loadKnowledge() {
   const params = new URLSearchParams({
     q: elements.searchInput.value.trim(),
     page: state.knowledgePage,
     pageSize: 18,
   });
-  elements.knowledgeList.innerHTML = `
-    <article class="knowledge-card knowledge-loading">
-      <p>Memuat knowledge…</p>
-    </article>
-  `;
+
   try {
     const payload = await getJson(`/api/topics?${params}`);
-    state.knowledgeItems = payload.items;
+    state.knowledgeItems = reset
+      ? payload.items
+      : [...state.knowledgeItems, ...payload.items];
     state.knowledgeTotalPages = payload.totalPages;
+    state.knowledgeHasMore = payload.page < payload.totalPages;
     elements.knowledgeMeta.textContent = `${formatNumber.format(payload.total)} knowledge tersedia`;
-    elements.knowledgePageLabel.textContent = `${payload.page} / ${payload.totalPages}`;
-    elements.previousKnowledgePage.disabled = payload.page <= 1;
-    elements.nextKnowledgePage.disabled = payload.page >= payload.totalPages;
+    elements.knowledgeLoadStatus.textContent = state.knowledgeHasMore
+      ? `${formatNumber.format(state.knowledgeItems.length)} knowledge dimuat · scroll untuk lanjut`
+      : `Semua ${formatNumber.format(payload.total)} knowledge sudah dimuat`;
+    elements.knowledgeSentinel.classList.toggle("is-hidden", !state.knowledgeHasMore);
     renderKnowledge();
   } catch (error) {
-    elements.knowledgeList.innerHTML = `
-      <article class="knowledge-card">
-        <h3>Knowledge gagal dimuat</h3>
-        <p>${escapeHtml(error.message)}</p>
-      </article>
-    `;
+    elements.knowledgeLoadStatus.textContent = `Gagal memuat: ${error.message}`;
+  } finally {
+    state.knowledgeLoading = false;
   }
 }
 
@@ -881,25 +898,34 @@ elements.categoryFilter.addEventListener("change", () => {
   loadBooks();
 });
 
-elements.previousPage.addEventListener("click", () => {
-  state.page = Math.max(1, state.page - 1);
-  loadBooks();
-});
+function setupInfiniteScroll() {
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      if (
+        entry.target === elements.bookSentinel
+        && state.activeView === "library"
+        && state.booksHasMore
+        && !state.booksLoading
+      ) {
+        state.page += 1;
+        loadBooks({ reset: false });
+      }
+      if (
+        entry.target === elements.knowledgeSentinel
+        && state.activeView === "knowledge"
+        && state.knowledgeHasMore
+        && !state.knowledgeLoading
+      ) {
+        state.knowledgePage += 1;
+        loadKnowledge({ reset: false });
+      }
+    }
+  }, { rootMargin: "500px 0px" });
 
-elements.nextPage.addEventListener("click", () => {
-  state.page = Math.min(state.totalPages, state.page + 1);
-  loadBooks();
-});
-
-elements.previousKnowledgePage.addEventListener("click", () => {
-  state.knowledgePage = Math.max(1, state.knowledgePage - 1);
-  loadKnowledge();
-});
-
-elements.nextKnowledgePage.addEventListener("click", () => {
-  state.knowledgePage = Math.min(state.knowledgeTotalPages, state.knowledgePage + 1);
-  loadKnowledge();
-});
+  observer.observe(elements.bookSentinel);
+  observer.observe(elements.knowledgeSentinel);
+}
 
 document.querySelectorAll("[data-view]").forEach((item) => {
   item.addEventListener("click", (event) => {
@@ -935,6 +961,7 @@ document.querySelectorAll("[data-saved-tab]").forEach((button) => {
 
 try {
   applyFontScale();
+  setupInfiniteScroll();
   await loadMeta();
   await loadBooks();
   updateStats();
