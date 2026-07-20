@@ -507,12 +507,11 @@ select {
 
 .bookmark-button::before {
   content: "";
-  width: 15px;
-  height: 22px;
-  border: 3px solid currentColor;
-  border-bottom: 0;
-  border-radius: 5px 5px 2px 2px;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 68%, 0 100%);
+  width: 20px;
+  height: 20px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .bookmark-button.saved {
@@ -896,25 +895,27 @@ select {
   height: 40px;
 }
 
+.highlight-action {
+  color: var(--muted);
+}
+
 .highlight-action::before {
   content: "";
-  width: 22px;
-  height: 13px;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #f6c116 0 42%, #344d59 42% 72%, #eef3f8 72%);
-  transform: rotate(-42deg);
-  box-shadow: 0 10px 0 -6px #f6c116;
+  width: 21px;
+  height: 21px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 11-6 6v3h9l3-3'/%3E%3Cpath d='m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 11-6 6v3h9l3-3'/%3E%3Cpath d='m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .highlight-action::after {
-  content: "";
-  position: absolute;
-  width: 24px;
-  height: 4px;
-  right: 7px;
-  bottom: 7px;
-  border-radius: 999px;
-  background: #f6c116;
+  content: none;
+}
+
+.highlight-action:hover,
+.highlight-action:focus-visible {
+  color: var(--teal-700);
+  background: var(--teal-100);
 }
 
 .reader-toolbar .bookmark-button {
