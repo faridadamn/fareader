@@ -361,6 +361,7 @@ h1 {
 }
 
 .cover {
+  position: relative;
   display: grid;
   place-items: center;
   width: 74px;
@@ -373,6 +374,26 @@ h1 {
   font-weight: 950;
   font-size: 24px;
   box-shadow: 0 12px 30px rgba(7, 27, 77, 0.1);
+  overflow: hidden;
+}
+
+.cover-fallback,
+.cover-image {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+}
+
+.cover-fallback {
+  display: grid;
+  place-items: center;
+}
+
+.cover-image {
+  position: relative;
+  z-index: 1;
+  object-fit: cover;
+  background: var(--surface-soft);
 }
 
 .continue-card h3,
@@ -486,12 +507,11 @@ select {
 
 .bookmark-button::before {
   content: "";
-  width: 15px;
-  height: 22px;
-  border: 3px solid currentColor;
-  border-bottom: 0;
-  border-radius: 5px 5px 2px 2px;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 68%, 0 100%);
+  width: 20px;
+  height: 20px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .bookmark-button.saved {
@@ -875,25 +895,27 @@ select {
   height: 40px;
 }
 
+.highlight-action {
+  color: var(--muted);
+}
+
 .highlight-action::before {
   content: "";
-  width: 22px;
-  height: 13px;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #f6c116 0 42%, #344d59 42% 72%, #eef3f8 72%);
-  transform: rotate(-42deg);
-  box-shadow: 0 10px 0 -6px #f6c116;
+  width: 21px;
+  height: 21px;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 11-6 6v3h9l3-3'/%3E%3Cpath d='m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 11-6 6v3h9l3-3'/%3E%3Cpath d='m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .highlight-action::after {
-  content: "";
-  position: absolute;
-  width: 24px;
-  height: 4px;
-  right: 7px;
-  bottom: 7px;
-  border-radius: 999px;
-  background: #f6c116;
+  content: none;
+}
+
+.highlight-action:hover,
+.highlight-action:focus-visible {
+  color: var(--teal-700);
+  background: var(--teal-100);
 }
 
 .reader-toolbar .bookmark-button {
@@ -927,11 +949,93 @@ select {
   letter-spacing: -0.055em;
 }
 
-.reader-section p {
+.reader-content {
   color: #1d2947;
   font-size: calc(18px * var(--reader-font-scale));
   line-height: calc(1.88 + (var(--reader-font-scale) - 1) * 0.18);
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
+}
+
+.reader-content > * {
+  max-width: 100%;
+}
+
+.reader-content p,
+.reader-content li,
+.reader-content blockquote {
+  font: inherit;
+  line-height: inherit;
+  white-space: normal;
+}
+
+.reader-content p {
+  margin: 0 0 1.15em;
+}
+
+.reader-content h1,
+.reader-content h2,
+.reader-content h3,
+.reader-content h4,
+.reader-content h5,
+.reader-content h6 {
+  margin: 1.35em 0 0.55em;
+  color: var(--navy-950);
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.reader-content img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin: 1.25em auto;
+  border-radius: 18px;
+}
+
+.reader-content figure {
+  margin: 1.4em 0;
+}
+
+.reader-content figcaption {
+  margin-top: 0.55em;
+  color: var(--muted);
+  font-size: 0.82em;
+  text-align: center;
+}
+
+.reader-content blockquote {
+  margin: 1.25em 0;
+  padding: 0.8em 1.1em;
+  border-left: 4px solid var(--teal-500);
+  background: var(--teal-100);
+}
+
+.reader-content ul,
+.reader-content ol {
+  padding-left: 1.4em;
+}
+
+.reader-content a {
+  color: var(--teal-700);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.reader-content table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  white-space: normal;
+}
+
+.reader-content th,
+.reader-content td {
+  padding: 0.65em;
+  border: 1px solid var(--line);
+  text-align: left;
 }
 
 .reader-controls {
@@ -1030,6 +1134,55 @@ select {
   line-height: 1;
 }
 
+
+.knowledge-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.knowledge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 40px rgba(7, 27, 77, 0.07);
+}
+
+.knowledge-card h3 {
+  margin: 0;
+  color: var(--navy-950);
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.knowledge-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.knowledge-card ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 1.25em;
+  color: #1d2947;
+  line-height: 1.65;
+}
+
+.knowledge-card li::marker {
+  color: var(--teal-500);
+}
+
+.knowledge-loading {
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 1120px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -1120,7 +1273,8 @@ select {
     width: 100%;
   }
 
-  .book-grid {
+  .book-grid,
+  .knowledge-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1160,7 +1314,7 @@ select {
     border-radius: 26px;
   }
 
-  .reader-section p {
+  .reader-content {
     font-size: calc(17px * var(--reader-font-scale));
   }
 
@@ -1192,7 +1346,7 @@ select {
     bottom: calc(10px + var(--safe-bottom));
     z-index: 40;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     padding: 8px;
     border: 1px solid var(--line);
     border-radius: 24px;

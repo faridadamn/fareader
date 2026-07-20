@@ -6,11 +6,18 @@ const STORAGE_KEYS = {
   readingItems: "fa-reader:reading-items:v1",
 };
 
-const API_BASE = String(window.FA_READER_API_BASE || "").replace(/\/$/, "");
+const CONFIGURED_API_BASE = String(window.FA_READER_API_BASE || "").replace(/\/$/, "");
+const IS_NATIVE_APP = Boolean(window.Capacitor?.isNativePlatform?.())
+  || window.location.protocol === "capacitor:"
+  || window.location.protocol === "file:";
+const API_BASE = IS_NATIVE_APP ? CONFIGURED_API_BASE : "";
 
 const state = {
   page: 1,
   totalPages: 1,
+  knowledgePage: 1,
+  knowledgeTotalPages: 1,
+  knowledgeItems: [],
   activeView: "library",
   selectedSlug: null,
   currentBook: null,
@@ -38,6 +45,11 @@ const elements = {
   bookList: document.querySelector("#bookList"),
   bookmarkList: document.querySelector("#bookmarkList"),
   highlightList: document.querySelector("#highlightList"),
+  knowledgeList: document.querySelector("#knowledgeList"),
+  knowledgeMeta: document.querySelector("#knowledgeMeta"),
+  previousKnowledgePage: document.querySelector("#previousKnowledgePage"),
+  nextKnowledgePage: document.querySelector("#nextKnowledgePage"),
+  knowledgePageLabel: document.querySelector("#knowledgePageLabel"),
   previousPage: document.querySelector("#previousPage"),
   nextPage: document.querySelector("#nextPage"),
   pageLabel: document.querySelector("#pageLabel"),
@@ -46,6 +58,7 @@ const elements = {
   supportModal: document.querySelector("#supportModal"),
   views: {
     library: document.querySelector("#libraryView"),
+    knowledge: document.querySelector("#knowledgeView"),
     bookmarks: document.querySelector("#bookmarksView"),
     reader: document.querySelector("#readerView"),
   },
@@ -112,32 +125,153 @@ function highlightsFor(slug, sectionIndex = null) {
   ));
 }
 
+const HTML_CONTENT_PATTERN = /<\/?[a-z][\s\S]*>/i;
+const ALLOWED_BOOK_TAGS = new Set([
+  "a", "article", "b", "blockquote", "br", "caption", "code", "div", "em",
+  "figcaption", "figure", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i",
+  "img", "li", "ol", "p", "pre", "section", "small", "span", "strong",
+  "sub", "sup", "table", "tbody", "td", "th", "thead", "tr", "u", "ul",
+]);
+const BLOCKED_BOOK_TAGS = new Set([
+  "base", "button", "embed", "form", "iframe", "input", "link", "meta",
+  "object", "script", "select", "style", "svg", "textarea",
+]);
+
+function isHtmlContent(value) {
+  return HTML_CONTENT_PATTERN.test(String(value || ""));
+}
+
+function safeContentUrl(value, { image = false } = {}) {
+  if (typeof value !== "string" || !value.trim()) return "";
+  try {
+    const url = new URL(value, window.location.origin);
+    if (url.protocol === "https:" || (!image && url.protocol === "http:")) {
+      return url.href;
+    }
+  } catch {
+    // Invalid and relative URLs are intentionally discarded.
+  }
+  return "";
+}
+
+function sanitizeBookHtml(rawHtml) {
+  const documentNode = new DOMParser().parseFromString(String(rawHtml || ""), "text/html");
+  const elementsToInspect = Array.from(documentNode.body.querySelectorAll("*"));
+
+  for (const element of elementsToInspect) {
+    const tagName = element.tagName.toLowerCase();
+    if (BLOCKED_BOOK_TAGS.has(tagName)) {
+      element.remove();
+      continue;
+    }
+    if (!ALLOWED_BOOK_TAGS.has(tagName)) {
+      element.replaceWith(...element.childNodes);
+      continue;
+    }
+
+    for (const attribute of Array.from(element.attributes)) {
+      const name = attribute.name.toLowerCase();
+      const allowed = name === "dir"
+        || (tagName === "a" && ["href", "title"].includes(name))
+        || (tagName === "img" && ["src", "alt", "title", "width", "height"].includes(name));
+      if (!allowed) element.removeAttribute(attribute.name);
+    }
+
+    if (tagName === "a") {
+      const href = safeContentUrl(element.getAttribute("href"));
+      if (href) {
+        element.setAttribute("href", href);
+        element.setAttribute("target", "_blank");
+        element.setAttribute("rel", "noopener noreferrer");
+      } else {
+        element.removeAttribute("href");
+      }
+    }
+
+    if (tagName === "img") {
+      const src = safeContentUrl(element.getAttribute("src"), { image: true });
+      if (!src) {
+        element.remove();
+        continue;
+      }
+      element.setAttribute("src", src);
+      element.setAttribute("loading", "lazy");
+      element.setAttribute("decoding", "async");
+    }
+  }
+
+  return documentNode.body.innerHTML;
+}
+
+function applyHighlightsToHtml(html, highlights) {
+  if (!highlights.length) return html;
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  for (const textNode of textNodes) {
+    const text = textNode.nodeValue || "";
+    const matches = [];
+    for (const highlight of highlights) {
+      const start = text.indexOf(highlight);
+      if (start >= 0) matches.push({ start, end: start + highlight.length });
+    }
+    matches.sort((a, b) => a.start - b.start);
+    const nonOverlapping = matches.filter((match, index, all) => (
+      index === 0 || match.start >= all[index - 1].end
+    ));
+    if (!nonOverlapping.length) continue;
+
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    for (const match of nonOverlapping) {
+      fragment.append(document.createTextNode(text.slice(cursor, match.start)));
+      const mark = document.createElement("mark");
+      mark.className = "highlighted-text";
+      mark.textContent = text.slice(match.start, match.end);
+      fragment.append(mark);
+      cursor = match.end;
+    }
+    fragment.append(document.createTextNode(text.slice(cursor)));
+    textNode.replaceWith(fragment);
+  }
+
+  return template.innerHTML;
+}
+
 function renderHighlightedContent(book, section, sectionIndex) {
+  const content = String(section.content || "");
   const highlights = highlightsFor(book.slug, sectionIndex)
     .map((item) => item.text)
     .filter(Boolean)
     .sort((a, b) => b.length - a.length);
-  if (!highlights.length) return escapeHtml(section.content);
+
+  if (isHtmlContent(content)) {
+    return applyHighlightsToHtml(sanitizeBookHtml(content), highlights);
+  }
+  if (!highlights.length) return escapeHtml(content);
 
   const ranges = [];
   for (const text of highlights) {
-    const start = section.content.indexOf(text);
+    const start = content.indexOf(text);
     if (start < 0) continue;
     const end = start + text.length;
     if (ranges.some((range) => start < range.end && end > range.start)) continue;
     ranges.push({ start, end });
   }
   ranges.sort((a, b) => a.start - b.start);
-  if (!ranges.length) return escapeHtml(section.content);
+  if (!ranges.length) return escapeHtml(content);
 
   let cursor = 0;
   let html = "";
   for (const range of ranges) {
-    html += escapeHtml(section.content.slice(cursor, range.start));
-    html += `<mark class="highlighted-text">${escapeHtml(section.content.slice(range.start, range.end))}</mark>`;
+    html += escapeHtml(content.slice(cursor, range.start));
+    html += `<mark class="highlighted-text">${escapeHtml(content.slice(range.start, range.end))}</mark>`;
     cursor = range.end;
   }
-  html += escapeHtml(section.content.slice(cursor));
+  html += escapeHtml(content.slice(cursor));
   return html;
 }
 
@@ -182,6 +316,7 @@ function rememberReadingItem(book) {
     slug: book.slug,
     title: book.title,
     original_author: book.original_author,
+    cover_url: book.cover_url || "",
     reading_time_minutes: book.reading_time_minutes,
     status: book.status,
     categories: book.categories || [],
@@ -231,7 +366,7 @@ function createHighlightFromSelection(book) {
 
   const sectionIndex = Number(sectionElement.dataset.readerSection);
   const section = book.sections[sectionIndex];
-  const normalizedContent = section.content.replace(/\s+/g, " ");
+  const normalizedContent = sectionElement.textContent.replace(/\s+/g, " ").trim();
   if (!normalizedContent.includes(text)) {
     if (button) {
       button.textContent = "Teks terlalu panjang";
@@ -283,6 +418,10 @@ function setView(view) {
   document.querySelectorAll("[data-view]").forEach((item) => {
     item.classList.toggle("active", item.dataset.view === view);
   });
+  elements.searchInput.placeholder = view === "knowledge"
+    ? "Cari knowledge, kategori, atau isi poin…"
+    : "Cari buku, penulis, atau topik…";
+  if (view === "knowledge" && !state.knowledgeItems.length) loadKnowledge();
   if (view === "bookmarks") renderBookmarks();
   if (view === "bookmarks") setSavedTab(state.activeSavedTab);
 }
@@ -324,6 +463,79 @@ async function loadBooks() {
   renderContinuePanel();
 }
 
+
+async function loadKnowledge() {
+  const params = new URLSearchParams({
+    q: elements.searchInput.value.trim(),
+    page: state.knowledgePage,
+    pageSize: 18,
+  });
+  elements.knowledgeList.innerHTML = `
+    <article class="knowledge-card knowledge-loading">
+      <p>Memuat knowledge…</p>
+    </article>
+  `;
+  try {
+    const payload = await getJson(`/api/topics?${params}`);
+    state.knowledgeItems = payload.items;
+    state.knowledgeTotalPages = payload.totalPages;
+    elements.knowledgeMeta.textContent = `${formatNumber.format(payload.total)} knowledge tersedia`;
+    elements.knowledgePageLabel.textContent = `${payload.page} / ${payload.totalPages}`;
+    elements.previousKnowledgePage.disabled = payload.page <= 1;
+    elements.nextKnowledgePage.disabled = payload.page >= payload.totalPages;
+    renderKnowledge();
+  } catch (error) {
+    elements.knowledgeList.innerHTML = `
+      <article class="knowledge-card">
+        <h3>Knowledge gagal dimuat</h3>
+        <p>${escapeHtml(error.message)}</p>
+      </article>
+    `;
+  }
+}
+
+function renderKnowledge() {
+  if (!state.knowledgeItems.length) {
+    elements.knowledgeList.innerHTML = `
+      <article class="knowledge-card">
+        <h3>Knowledge tidak ditemukan</h3>
+        <p>Coba kata kunci lain.</p>
+      </article>
+    `;
+    return;
+  }
+
+  elements.knowledgeList.innerHTML = state.knowledgeItems.map((topic) => `
+    <article class="knowledge-card">
+      <div class="tag-row">
+        ${(topic.categories || []).slice(0, 4).map((value) => tag(value)).join("")}
+      </div>
+      <h3>${escapeHtml(topic.title || "Tanpa judul")}</h3>
+      <ul>
+        ${(topic.points || []).map((point) => `<li>${escapeHtml(point)}</li>`).join("")}
+      </ul>
+    </article>
+  `).join("");
+}
+
+function coverContent(book) {
+  const coverUrl = safeContentUrl(book.cover_url, { image: true });
+  return `
+    <span class="cover-fallback" aria-hidden="true">${escapeHtml(initials(book.title))}</span>
+    ${coverUrl ? `
+      <img class="cover-image" src="${escapeHtml(coverUrl)}" alt="" loading="lazy" decoding="async">
+    ` : ""}
+  `;
+}
+
+function wireCoverImages(root = document) {
+  root.querySelectorAll(".cover-image").forEach((image) => {
+    const hideBrokenImage = () => image.remove();
+    image.addEventListener("error", hideBrokenImage, { once: true });
+    if (image.complete && image.naturalWidth === 0) hideBrokenImage();
+  });
+}
+
 function bookCard(book) {
   const percent = progressFor(book.slug, book.section_count || book.sections?.length || 0);
   const saved = state.bookmarks.has(book.slug);
@@ -331,7 +543,7 @@ function bookCard(book) {
     <article class="book-card ${book.slug === state.selectedSlug ? "active" : ""}">
       <div class="book-card-top">
         <button type="button" class="cover" data-open="${escapeHtml(book.slug)}" aria-label="Buka ${escapeHtml(book.title)}">
-          ${escapeHtml(initials(book.title))}
+          ${coverContent(book)}
         </button>
         <button type="button" class="bookmark-button ${saved ? "saved" : ""}" data-bookmark="${escapeHtml(book.slug)}" aria-label="${saved ? "Hapus bookmark" : "Simpan bookmark"}">
         </button>
@@ -355,6 +567,7 @@ function bookCard(book) {
 }
 
 function wireBookCards(root = document) {
+  wireCoverImages(root);
   root.querySelectorAll("[data-open]").forEach((button) => {
     button.addEventListener("click", () => selectBook(button.dataset.open));
   });
@@ -447,7 +660,7 @@ function renderContinuePanel() {
         const percent = progressFor(book.slug, book.section_count);
         return `
           <article class="continue-card">
-            <button type="button" class="cover" data-open="${escapeHtml(book.slug)}">${escapeHtml(initials(book.title))}</button>
+            <button type="button" class="cover" data-open="${escapeHtml(book.slug)}" aria-label="Buka ${escapeHtml(book.title)}">${coverContent(book)}</button>
             <div>
               <h3>${escapeHtml(book.title)}</h3>
               <p>${escapeHtml(book.original_author || "Penulis belum terdeteksi")} · progress ${percent}%</p>
@@ -530,7 +743,7 @@ function renderReader(book) {
             <section class="reader-section ${sectionIndex === index ? "active" : ""}" data-reader-section="${sectionIndex}">
               <p class="eyebrow">Bagian ${sectionIndex + 1} dari ${book.sections.length}</p>
               <h3>${escapeHtml(section.title)}</h3>
-              <p>${renderHighlightedContent(book, section, sectionIndex)}</p>
+              <div class="reader-content">${renderHighlightedContent(book, section, sectionIndex)}</div>
             </section>
           `).join("")}
         </div>
@@ -640,16 +853,26 @@ function setupReaderScrollTracking(book) {
 
 elements.searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  state.page = 1;
-  loadBooks();
-  setView("library");
+  if (state.activeView === "knowledge") {
+    state.knowledgePage = 1;
+    loadKnowledge();
+  } else {
+    state.page = 1;
+    loadBooks();
+    setView("library");
+  }
 });
 
 elements.searchInput.addEventListener("input", () => {
   clearTimeout(state.searchTimer);
   state.searchTimer = setTimeout(() => {
-    state.page = 1;
-    loadBooks();
+    if (state.activeView === "knowledge") {
+      state.knowledgePage = 1;
+      loadKnowledge();
+    } else {
+      state.page = 1;
+      loadBooks();
+    }
   }, 300);
 });
 
@@ -666,6 +889,16 @@ elements.previousPage.addEventListener("click", () => {
 elements.nextPage.addEventListener("click", () => {
   state.page = Math.min(state.totalPages, state.page + 1);
   loadBooks();
+});
+
+elements.previousKnowledgePage.addEventListener("click", () => {
+  state.knowledgePage = Math.max(1, state.knowledgePage - 1);
+  loadKnowledge();
+});
+
+elements.nextKnowledgePage.addEventListener("click", () => {
+  state.knowledgePage = Math.min(state.knowledgeTotalPages, state.knowledgePage + 1);
+  loadKnowledge();
 });
 
 document.querySelectorAll("[data-view]").forEach((item) => {
