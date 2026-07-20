@@ -198,7 +198,7 @@ async function loadTopics(url) {
       )`
     : sql`true`;
 
-  const [countRow, items] = await Promise.all([
+  const [countRows, items] = await Promise.all([
     sql`SELECT count(*)::int AS total FROM topics t WHERE ${queryFilter}`,
     sql`
       SELECT t.id, t.title, t.categories, t.points, t.created_at
@@ -209,13 +209,14 @@ async function loadTopics(url) {
       OFFSET ${offset}
     `,
   ]);
+  const total = countRows[0]?.total || 0;
 
   return {
     items,
     page,
     pageSize,
-    total: countRow.total,
-    totalPages: Math.max(1, Math.ceil(countRow.total / pageSize)),
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
   };
 }
 
