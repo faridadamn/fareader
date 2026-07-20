@@ -19,6 +19,10 @@
           <span>⌂</span>
           <span>Beranda</span>
         </a>
+        <a class="nav-item" href="#knowledge" data-view="knowledge">
+          <span>✦</span>
+          <span>Knowledge</span>
+        </a>
         <a class="nav-item" href="#bookmarks" data-view="bookmarks">
           <span>▱</span>
           <span>Bookmark</span>
@@ -93,6 +97,22 @@
         </div>
       </section>
 
+      <section id="knowledgeView" class="view">
+        <section class="section-heading">
+          <div>
+            <p class="eyebrow">Knowledge</p>
+            <h2>Wawasan praktis dalam sekali baca</h2>
+            <p id="knowledgeMeta">Memuat knowledge…</p>
+          </div>
+        </section>
+        <section id="knowledgeList" class="knowledge-grid"></section>
+        <div class="pagination">
+          <button id="previousKnowledgePage" type="button">Sebelumnya</button>
+          <span id="knowledgePageLabel">1 / 1</span>
+          <button id="nextKnowledgePage" type="button">Berikutnya</button>
+        </div>
+      </section>
+
       <section id="bookmarksView" class="view">
         <section class="section-heading">
           <div>
@@ -124,6 +144,10 @@
     <button class="bottom-item active" type="button" data-view="library">
       <span>⌂</span>
       <small>Beranda</small>
+    </button>
+    <button class="bottom-item" type="button" data-view="knowledge">
+      <span>✦</span>
+      <small>Knowledge</small>
     </button>
     <button class="bottom-item" type="button" data-view="bookmarks">
       <span>▱</span>
