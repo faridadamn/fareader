@@ -50,9 +50,7 @@ export function handleOptions(request, response) {
 }
 
 function visibleBookFilter(sql, alias = "b") {
-  return previewMode
-    ? sql`${sql(alias)}.status IN ('published', 'ready_for_review')`
-    : sql`${sql(alias)}.status = 'published'`;
+  return sql`${sql(alias)}.status <> 'rejected'`;
 }
 
 export async function loadHealth() {
@@ -60,7 +58,7 @@ export async function loadHealth() {
   const [row] = await sql`SELECT 1 AS ok`;
   return {
     ok: row.ok === 1,
-    mode: previewMode ? "preview" : "published-only",
+    mode: "public-catalog",
   };
 }
 
@@ -86,7 +84,7 @@ export async function loadMeta() {
   return {
     total: stats[0].total,
     categories,
-    preview: previewMode,
+    preview: false,
   };
 }
 
@@ -307,7 +305,7 @@ export async function loadBook(slug) {
     WHERE book_id = (SELECT id FROM books WHERE slug = ${slug})
     ORDER BY order_index
   `;
-  return { ...book, sections, preview: previewMode };
+  return { ...book, sections, preview: false };
 }
 
 export function requestUrl(request) {
