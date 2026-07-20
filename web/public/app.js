@@ -611,7 +611,7 @@ async function openKnowledgeDetail(topicId) {
     <div class="knowledge-detail-loading" role="status">Memuat detail knowledge…</div>
   `;
   try {
-    const topic = await getJson(`/api/topics/${encodeURIComponent(topicId)}`);
+    const topic = await getJson(`/api/topics?id=${encodeURIComponent(topicId)}`);
     elements.knowledgeDetail.innerHTML = `
       <header class="knowledge-detail-header">
         <div class="tag-row">${(topic.categories || []).slice(0, 6).map((value) => tag(value)).join("")}</div>
