@@ -6,7 +6,11 @@ const STORAGE_KEYS = {
   readingItems: "fa-reader:reading-items:v1",
 };
 
-const API_BASE = String(window.FA_READER_API_BASE || "").replace(/\/$/, "");
+const CONFIGURED_API_BASE = String(window.FA_READER_API_BASE || "").replace(/\/$/, "");
+const IS_NATIVE_APP = Boolean(window.Capacitor?.isNativePlatform?.())
+  || window.location.protocol === "capacitor:"
+  || window.location.protocol === "file:";
+const API_BASE = IS_NATIVE_APP ? CONFIGURED_API_BASE : "";
 
 const state = {
   page: 1,
