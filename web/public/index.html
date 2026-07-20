@@ -83,9 +83,16 @@
             <h2>Perpustakaan</h2>
             <p id="resultMeta">Memuat katalog…</p>
           </div>
-          <select id="categoryFilter" aria-label="Filter kategori">
-            <option value="">Semua kategori</option>
-          </select>
+          <div class="catalog-filters">
+            <select id="sortFilter" aria-label="Urutkan buku">
+              <option value="popular">Terpopuler 30 hari</option>
+              <option value="newest">Terbaru</option>
+              <option value="title">Judul A–Z</option>
+            </select>
+            <select id="categoryFilter" aria-label="Filter kategori">
+              <option value="">Semua kategori</option>
+            </select>
+          </div>
         </section>
 
         <section id="bookList" class="book-grid"></section>
