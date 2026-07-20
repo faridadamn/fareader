@@ -539,9 +539,23 @@ select {
 .card-footer {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 10px;
   margin-top: auto;
+}
+
+.popularity-meta {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.catalog-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .progress-ring {
@@ -1270,7 +1284,8 @@ select {
     flex-direction: column;
   }
 
-  select {
+  .catalog-filters,
+  .catalog-filters select {
     width: 100%;
   }
 
