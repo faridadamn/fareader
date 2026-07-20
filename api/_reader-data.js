@@ -155,6 +155,43 @@ export async function loadBooks(url) {
   };
 }
 
+
+export async function loadTopics(url) {
+  const sql = getSql();
+  const query = (url.searchParams.get("q") || "").trim();
+  const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+  const pageSize = Math.min(60, Math.max(6, Number(url.searchParams.get("pageSize") || 18)));
+  const offset = (page - 1) * pageSize;
+  const pattern = `%${query}%`;
+  const queryFilter = query
+    ? sql`(
+        coalesce(t.title, '') ILIKE ${pattern}
+        OR coalesce(t.categories::text, '') ILIKE ${pattern}
+        OR coalesce(t.points::text, '') ILIKE ${pattern}
+      )`
+    : sql`true`;
+
+  const [countRow, items] = await Promise.all([
+    sql`SELECT count(*)::int AS total FROM topics t WHERE ${queryFilter}`,
+    sql`
+      SELECT t.id, t.title, t.categories, t.points, t.created_at
+      FROM topics t
+      WHERE ${queryFilter}
+      ORDER BY t.created_at DESC NULLS LAST, t.title
+      LIMIT ${pageSize}
+      OFFSET ${offset}
+    `,
+  ]);
+
+  return {
+    items,
+    page,
+    pageSize,
+    total: countRow.total,
+    totalPages: Math.max(1, Math.ceil(countRow.total / pageSize)),
+  };
+}
+
 export async function loadBook(slug) {
   const sql = getSql();
   const [book] = await sql`
