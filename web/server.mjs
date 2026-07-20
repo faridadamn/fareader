@@ -154,6 +154,7 @@ async function loadBooks(url) {
       b.title,
       b.original_author,
       b.description,
+      b.cover_url,
       b.word_count,
       b.reading_time_minutes,
       b.status,
