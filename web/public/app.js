@@ -11,6 +11,9 @@ const API_BASE = String(window.FA_READER_API_BASE || "").replace(/\/$/, "");
 const state = {
   page: 1,
   totalPages: 1,
+  knowledgePage: 1,
+  knowledgeTotalPages: 1,
+  knowledgeItems: [],
   activeView: "library",
   selectedSlug: null,
   currentBook: null,
@@ -38,6 +41,11 @@ const elements = {
   bookList: document.querySelector("#bookList"),
   bookmarkList: document.querySelector("#bookmarkList"),
   highlightList: document.querySelector("#highlightList"),
+  knowledgeList: document.querySelector("#knowledgeList"),
+  knowledgeMeta: document.querySelector("#knowledgeMeta"),
+  previousKnowledgePage: document.querySelector("#previousKnowledgePage"),
+  nextKnowledgePage: document.querySelector("#nextKnowledgePage"),
+  knowledgePageLabel: document.querySelector("#knowledgePageLabel"),
   previousPage: document.querySelector("#previousPage"),
   nextPage: document.querySelector("#nextPage"),
   pageLabel: document.querySelector("#pageLabel"),
@@ -46,6 +54,7 @@ const elements = {
   supportModal: document.querySelector("#supportModal"),
   views: {
     library: document.querySelector("#libraryView"),
+    knowledge: document.querySelector("#knowledgeView"),
     bookmarks: document.querySelector("#bookmarksView"),
     reader: document.querySelector("#readerView"),
   },
@@ -404,6 +413,10 @@ function setView(view) {
   document.querySelectorAll("[data-view]").forEach((item) => {
     item.classList.toggle("active", item.dataset.view === view);
   });
+  elements.searchInput.placeholder = view === "knowledge"
+    ? "Cari knowledge, kategori, atau isi poin…"
+    : "Cari buku, penulis, atau topik…";
+  if (view === "knowledge" && !state.knowledgeItems.length) loadKnowledge();
   if (view === "bookmarks") renderBookmarks();
   if (view === "bookmarks") setSavedTab(state.activeSavedTab);
 }
@@ -443,6 +456,61 @@ async function loadBooks() {
   elements.nextPage.disabled = payload.page >= payload.totalPages;
   renderBookLists();
   renderContinuePanel();
+}
+
+
+async function loadKnowledge() {
+  const params = new URLSearchParams({
+    q: elements.searchInput.value.trim(),
+    page: state.knowledgePage,
+    pageSize: 18,
+  });
+  elements.knowledgeList.innerHTML = `
+    <article class="knowledge-card knowledge-loading">
+      <p>Memuat knowledge…</p>
+    </article>
+  `;
+  try {
+    const payload = await getJson(`/api/topics?${params}`);
+    state.knowledgeItems = payload.items;
+    state.knowledgeTotalPages = payload.totalPages;
+    elements.knowledgeMeta.textContent = `${formatNumber.format(payload.total)} knowledge tersedia`;
+    elements.knowledgePageLabel.textContent = `${payload.page} / ${payload.totalPages}`;
+    elements.previousKnowledgePage.disabled = payload.page <= 1;
+    elements.nextKnowledgePage.disabled = payload.page >= payload.totalPages;
+    renderKnowledge();
+  } catch (error) {
+    elements.knowledgeList.innerHTML = `
+      <article class="knowledge-card">
+        <h3>Knowledge gagal dimuat</h3>
+        <p>${escapeHtml(error.message)}</p>
+      </article>
+    `;
+  }
+}
+
+function renderKnowledge() {
+  if (!state.knowledgeItems.length) {
+    elements.knowledgeList.innerHTML = `
+      <article class="knowledge-card">
+        <h3>Knowledge tidak ditemukan</h3>
+        <p>Coba kata kunci lain.</p>
+      </article>
+    `;
+    return;
+  }
+
+  elements.knowledgeList.innerHTML = state.knowledgeItems.map((topic) => `
+    <article class="knowledge-card">
+      <div class="tag-row">
+        ${(topic.categories || []).slice(0, 4).map((value) => tag(value)).join("")}
+      </div>
+      <h3>${escapeHtml(topic.title || "Tanpa judul")}</h3>
+      <ul>
+        ${(topic.points || []).map((point) => `<li>${escapeHtml(point)}</li>`).join("")}
+      </ul>
+    </article>
+  `).join("");
 }
 
 function bookCard(book) {
@@ -761,16 +829,26 @@ function setupReaderScrollTracking(book) {
 
 elements.searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  state.page = 1;
-  loadBooks();
-  setView("library");
+  if (state.activeView === "knowledge") {
+    state.knowledgePage = 1;
+    loadKnowledge();
+  } else {
+    state.page = 1;
+    loadBooks();
+    setView("library");
+  }
 });
 
 elements.searchInput.addEventListener("input", () => {
   clearTimeout(state.searchTimer);
   state.searchTimer = setTimeout(() => {
-    state.page = 1;
-    loadBooks();
+    if (state.activeView === "knowledge") {
+      state.knowledgePage = 1;
+      loadKnowledge();
+    } else {
+      state.page = 1;
+      loadBooks();
+    }
   }, 300);
 });
 
@@ -787,6 +865,16 @@ elements.previousPage.addEventListener("click", () => {
 elements.nextPage.addEventListener("click", () => {
   state.page = Math.min(state.totalPages, state.page + 1);
   loadBooks();
+});
+
+elements.previousKnowledgePage.addEventListener("click", () => {
+  state.knowledgePage = Math.max(1, state.knowledgePage - 1);
+  loadKnowledge();
+});
+
+elements.nextKnowledgePage.addEventListener("click", () => {
+  state.knowledgePage = Math.min(state.knowledgeTotalPages, state.knowledgePage + 1);
+  loadKnowledge();
 });
 
 document.querySelectorAll("[data-view]").forEach((item) => {
