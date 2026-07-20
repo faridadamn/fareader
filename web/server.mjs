@@ -223,13 +223,20 @@ async function loadTopics(url) {
         coalesce(t.title, '') ILIKE ${pattern}
         OR coalesce(t.categories::text, '') ILIKE ${pattern}
         OR coalesce(t.points::text, '') ILIKE ${pattern}
+        OR EXISTS (
+          SELECT 1 FROM notes search_note
+          WHERE search_note.topic_id = t.id
+            AND coalesce(search_note.content, '') ILIKE ${pattern}
+        )
       )`
     : sql`true`;
 
   const [countRows, items] = await Promise.all([
     sql`SELECT count(*)::int AS total FROM topics t WHERE ${queryFilter}`,
     sql`
-      SELECT t.id, t.title, t.categories, t.points, t.created_at
+      SELECT
+        t.id, t.title, t.categories, t.points, t.created_at,
+        EXISTS (SELECT 1 FROM notes n WHERE n.topic_id = t.id) AS has_note
       FROM topics t
       WHERE ${queryFilter}
       ORDER BY t.created_at DESC NULLS LAST, t.title
@@ -248,6 +255,25 @@ async function loadTopics(url) {
   };
 }
 
+
+
+async function loadTopicDetail(topicId) {
+  const [topic] = await sql`
+    SELECT t.id, t.title, t.categories, t.points, t.created_at,
+      note.content, note.updated_at AS note_updated_at, note.version AS note_version
+    FROM topics t
+    JOIN LATERAL (
+      SELECT n.content, n.updated_at, n.version
+      FROM notes n
+      WHERE n.topic_id = t.id
+      ORDER BY n.version DESC, n.updated_at DESC NULLS LAST
+      LIMIT 1
+    ) note ON true
+    WHERE t.id = ${topicId}
+    LIMIT 1
+  `;
+  return topic || null;
+}
 
 const ALLOWED_READING_EVENTS = new Set(["book_opened", "book_completed"]);
 
@@ -367,6 +393,13 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && url.pathname === "/api/topics") {
       return sendJson(request, response, 200, await loadTopics(url));
+    }
+    const topicDetailMatch = url.pathname.match(/^\/api\/topics\/([^/]+)$/);
+    if (request.method === "GET" && topicDetailMatch) {
+      const topic = await loadTopicDetail(decodeURIComponent(topicDetailMatch[1]));
+      return topic
+        ? sendJson(request, response, 200, topic)
+        : sendJson(request, response, 404, { error: "Detail knowledge belum tersedia." });
     }
     if (request.method === "POST" && url.pathname === "/api/events") {
       return sendJson(request, response, 202, await recordProductEvent(await readJsonBody(request)));
