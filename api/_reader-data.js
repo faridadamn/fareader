@@ -7,8 +7,6 @@ const allowedOrigins = new Set(
     .filter(Boolean),
 );
 
-const previewMode = process.env.PREVIEW_CATALOG === "1"
-  || process.env.VERCEL_ENV === "preview";
 let sqlClient;
 
 export function getSql() {
@@ -183,7 +181,7 @@ export async function loadBooks(url) {
     pageSize,
     total: countRow.total,
     totalPages: Math.max(1, Math.ceil(countRow.total / pageSize)),
-    preview: previewMode,
+    preview: false,
   };
 }
 
