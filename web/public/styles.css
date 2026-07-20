@@ -1194,6 +1194,48 @@ select {
   color: var(--teal-500);
 }
 
+.knowledge-card-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: auto;
+  padding-top: 4px;
+}
+.knowledge-card-actions .primary-button { width: auto; }
+.knowledge-back-button { margin-bottom: 18px; }
+.knowledge-detail-shell {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  overflow: hidden;
+}
+.knowledge-detail-header {
+  padding: clamp(28px, 6vw, 56px);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(145deg, rgba(223, 248, 248, 0.86), rgba(255, 255, 255, 0.98));
+}
+.knowledge-detail-header h1 {
+  max-width: 760px;
+  margin: 10px 0 22px;
+  font-size: clamp(34px, 6vw, 58px);
+}
+.knowledge-detail-points {
+  display: grid;
+  gap: 10px;
+  max-width: 760px;
+  margin: 0;
+  padding-left: 1.25em;
+  color: #1d2947;
+  line-height: 1.65;
+}
+.knowledge-detail-points li::marker { color: var(--teal-500); }
+.knowledge-detail-content {
+  max-width: 760px;
+  margin: 0 auto;
+}
+.knowledge-detail-loading {
+  padding: 48px;
+  color: var(--muted);
+  text-align: center;
+}
 .knowledge-loading {
   grid-column: 1 / -1;
 }

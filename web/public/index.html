@@ -49,7 +49,7 @@
           <span aria-hidden="true">⌕</span>
           <input id="searchInput" type="search" placeholder="Cari buku, penulis, atau topik…" autocomplete="off">
         </form>
-        <span id="modeBadge" class="mode-badge">Memuat…</span>
+        <span id="modeBadge" class="mode-badge is-hidden" aria-hidden="true"></span>
       </header>
 
       <section id="libraryView" class="view active-view">
@@ -112,6 +112,11 @@
         <section id="knowledgeList" class="knowledge-grid"></section>
         <div id="knowledgeLoadStatus" class="infinite-status" role="status">Memuat knowledge…</div>
         <div id="knowledgeSentinel" class="scroll-sentinel" aria-hidden="true"></div>
+      </section>
+
+      <section id="knowledgeDetailView" class="view">
+        <button id="knowledgeBackButton" type="button" class="ghost-button knowledge-back-button">← Kembali ke Knowledge</button>
+        <article id="knowledgeDetail" class="reader-article knowledge-detail-shell"></article>
       </section>
 
       <section id="bookmarksView" class="view">

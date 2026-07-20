@@ -61,12 +61,15 @@ const elements = {
   bookSentinel: document.querySelector("#bookSentinel"),
   knowledgeLoadStatus: document.querySelector("#knowledgeLoadStatus"),
   knowledgeSentinel: document.querySelector("#knowledgeSentinel"),
+  knowledgeDetail: document.querySelector("#knowledgeDetail"),
+  knowledgeBackButton: document.querySelector("#knowledgeBackButton"),
   reader: document.querySelector("#reader"),
   continuePanel: document.querySelector("#continuePanel"),
   supportModal: document.querySelector("#supportModal"),
   views: {
     library: document.querySelector("#libraryView"),
     knowledge: document.querySelector("#knowledgeView"),
+    knowledgeDetail: document.querySelector("#knowledgeDetailView"),
     bookmarks: document.querySelector("#bookmarksView"),
     reader: document.querySelector("#readerView"),
   },
@@ -471,11 +474,12 @@ function setView(view) {
   Object.entries(elements.views).forEach(([key, element]) => {
     element.classList.toggle("active-view", key === view);
   });
+  const navView = view === "knowledgeDetail" ? "knowledge" : view;
   document.querySelectorAll("[data-view]").forEach((item) => {
-    item.classList.toggle("active", item.dataset.view === view);
+    item.classList.toggle("active", item.dataset.view === navView);
   });
-  elements.searchInput.placeholder = view === "knowledge"
-    ? "Cari knowledge, kategori, atau isi poin…"
+  elements.searchInput.placeholder = navView === "knowledge"
+    ? "Cari knowledge, kategori, poin, atau notes…"
     : "Cari buku, penulis, atau topik…";
   if (view === "knowledge" && !state.knowledgeItems.length) loadKnowledge();
   if (view === "bookmarks") renderBookmarks();
@@ -484,9 +488,6 @@ function setView(view) {
 
 async function loadMeta() {
   const meta = await getJson("/api/meta");
-  elements.modeBadge.textContent = meta.preview
-    ? "Preview: published + siap review"
-    : "Publik: published only";
   elements.totalBooks.textContent = formatNumber.format(meta.total);
   for (const category of meta.categories) {
     const option = document.createElement("option");
@@ -590,8 +591,51 @@ function renderKnowledge() {
       <ul>
         ${(topic.points || []).map((point) => `<li>${escapeHtml(point)}</li>`).join("")}
       </ul>
+      ${topic.has_note ? `
+        <div class="knowledge-card-actions">
+          <button type="button" class="primary-button" data-open-topic="${escapeHtml(topic.id)}">Baca Detail</button>
+        </div>
+      ` : ""}
     </article>
   `).join("");
+
+  elements.knowledgeList.querySelectorAll("[data-open-topic]").forEach((button) => {
+    button.addEventListener("click", () => openKnowledgeDetail(button.dataset.openTopic));
+  });
+}
+
+async function openKnowledgeDetail(topicId) {
+  setView("knowledgeDetail");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  elements.knowledgeDetail.innerHTML = `
+    <div class="knowledge-detail-loading" role="status">Memuat detail knowledge…</div>
+  `;
+  try {
+    const topic = await getJson(`/api/topics?id=${encodeURIComponent(topicId)}`);
+    elements.knowledgeDetail.innerHTML = `
+      <header class="knowledge-detail-header">
+        <div class="tag-row">${(topic.categories || []).slice(0, 6).map((value) => tag(value)).join("")}</div>
+        <p class="eyebrow">Knowledge</p>
+        <h1>${escapeHtml(topic.title || "Tanpa judul")}</h1>
+        ${(topic.points || []).length ? `
+          <ul class="knowledge-detail-points">
+            ${topic.points.map((point) => `<li>${escapeHtml(point)}</li>`).join("")}
+          </ul>
+        ` : ""}
+      </header>
+      <div class="reader-body">
+        <div class="reader-content knowledge-detail-content">${sanitizeBookHtml(topic.content)}</div>
+      </div>
+    `;
+  } catch (error) {
+    elements.knowledgeDetail.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-icon">!</span>
+        <h2>Detail knowledge gagal dimuat</h2>
+        <p>${escapeHtml(error.message)}</p>
+      </div>
+    `;
+  }
 }
 
 function coverContent(book) {
@@ -630,7 +674,7 @@ function bookCard(book) {
       </div>
       <div class="tag-row">
         ${(book.categories || []).slice(0, 2).map((value) => tag(value)).join("")}
-        ${book.status !== "published" ? tag("Preview", "preview") : ""}
+
       </div>
       <div class="card-footer">
         <span class="popularity-meta">
@@ -774,9 +818,7 @@ function renderReader(book) {
   const percent = progressFor(book.slug, book.sections.length);
   const saved = state.bookmarks.has(book.slug);
   elements.reader.innerHTML = `
-    ${book.preview && book.status !== "published" ? `
-      <div class="notice">Mode preview aktif. Buku ini belum published dan tidak tampil di mode publik.</div>
-    ` : ""}
+
     <div class="reader-shell">
       <aside class="toc">
         <strong>Daftar isi</strong>
@@ -938,7 +980,7 @@ function setupReaderScrollTracking(book) {
 
 elements.searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  if (state.activeView === "knowledge") {
+  if (state.activeView.startsWith("knowledge")) {
     state.knowledgePage = 1;
     loadKnowledge();
   } else {
@@ -951,7 +993,7 @@ elements.searchForm.addEventListener("submit", (event) => {
 elements.searchInput.addEventListener("input", () => {
   clearTimeout(state.searchTimer);
   state.searchTimer = setTimeout(() => {
-    if (state.activeView === "knowledge") {
+    if (state.activeView.startsWith("knowledge")) {
       state.knowledgePage = 1;
       loadKnowledge();
     } else {
@@ -986,7 +1028,7 @@ function setupInfiniteScroll() {
       }
       if (
         entry.target === elements.knowledgeSentinel
-        && state.activeView === "knowledge"
+        && state.activeView.startsWith("knowledge")
         && state.knowledgeHasMore
         && !state.knowledgeLoading
       ) {
@@ -999,6 +1041,11 @@ function setupInfiniteScroll() {
   observer.observe(elements.bookSentinel);
   observer.observe(elements.knowledgeSentinel);
 }
+
+elements.knowledgeBackButton?.addEventListener("click", () => {
+  setView("knowledge");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
 
 document.querySelectorAll("[data-view]").forEach((item) => {
   item.addEventListener("click", (event) => {

@@ -7,8 +7,6 @@ const allowedOrigins = new Set(
     .filter(Boolean),
 );
 
-const previewMode = process.env.PREVIEW_CATALOG === "1"
-  || process.env.VERCEL_ENV === "preview";
 let sqlClient;
 
 export function getSql() {
@@ -50,9 +48,7 @@ export function handleOptions(request, response) {
 }
 
 function visibleBookFilter(sql, alias = "b") {
-  return previewMode
-    ? sql`${sql(alias)}.status IN ('published', 'ready_for_review')`
-    : sql`${sql(alias)}.status = 'published'`;
+  return sql`${sql(alias)}.status <> 'rejected'`;
 }
 
 export async function loadHealth() {
@@ -60,7 +56,7 @@ export async function loadHealth() {
   const [row] = await sql`SELECT 1 AS ok`;
   return {
     ok: row.ok === 1,
-    mode: previewMode ? "preview" : "published-only",
+    mode: "public-catalog",
   };
 }
 
@@ -86,7 +82,7 @@ export async function loadMeta() {
   return {
     total: stats[0].total,
     categories,
-    preview: previewMode,
+    preview: false,
   };
 }
 
@@ -185,7 +181,7 @@ export async function loadBooks(url) {
     pageSize,
     total: countRow.total,
     totalPages: Math.max(1, Math.ceil(countRow.total / pageSize)),
-    preview: previewMode,
+    preview: false,
   };
 }
 
@@ -202,13 +198,20 @@ export async function loadTopics(url) {
         coalesce(t.title, '') ILIKE ${pattern}
         OR coalesce(t.categories::text, '') ILIKE ${pattern}
         OR coalesce(t.points::text, '') ILIKE ${pattern}
+        OR EXISTS (
+          SELECT 1 FROM notes search_note
+          WHERE search_note.topic_id = t.id
+            AND coalesce(search_note.content, '') ILIKE ${pattern}
+        )
       )`
     : sql`true`;
 
   const [countRows, items] = await Promise.all([
     sql`SELECT count(*)::int AS total FROM topics t WHERE ${queryFilter}`,
     sql`
-      SELECT t.id, t.title, t.categories, t.points, t.created_at
+      SELECT
+        t.id, t.title, t.categories, t.points, t.created_at,
+        EXISTS (SELECT 1 FROM notes n WHERE n.topic_id = t.id) AS has_note
       FROM topics t
       WHERE ${queryFilter}
       ORDER BY t.created_at DESC NULLS LAST, t.title
@@ -227,6 +230,26 @@ export async function loadTopics(url) {
   };
 }
 
+
+
+export async function loadTopicDetail(topicId) {
+  const sql = getSql();
+  const [topic] = await sql`
+    SELECT t.id, t.title, t.categories, t.points, t.created_at,
+      note.content, note.updated_at AS note_updated_at, note.version AS note_version
+    FROM topics t
+    JOIN LATERAL (
+      SELECT n.content, n.updated_at, n.version
+      FROM notes n
+      WHERE n.topic_id = t.id
+      ORDER BY n.version DESC, n.updated_at DESC NULLS LAST
+      LIMIT 1
+    ) note ON true
+    WHERE t.id = ${topicId}
+    LIMIT 1
+  `;
+  return topic || null;
+}
 
 const ALLOWED_READING_EVENTS = new Set(["book_opened", "book_completed"]);
 
@@ -307,7 +330,7 @@ export async function loadBook(slug) {
     WHERE book_id = (SELECT id FROM books WHERE slug = ${slug})
     ORDER BY order_index
   `;
-  return { ...book, sections, preview: previewMode };
+  return { ...book, sections, preview: false };
 }
 
 export function requestUrl(request) {
