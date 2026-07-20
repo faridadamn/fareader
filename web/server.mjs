@@ -182,6 +182,42 @@ async function loadBooks(url) {
   };
 }
 
+
+async function loadTopics(url) {
+  const query = (url.searchParams.get("q") || "").trim();
+  const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+  const pageSize = Math.min(60, Math.max(6, Number(url.searchParams.get("pageSize") || 18)));
+  const offset = (page - 1) * pageSize;
+  const pattern = `%${query}%`;
+  const queryFilter = query
+    ? sql`(
+        coalesce(t.title, '') ILIKE ${pattern}
+        OR coalesce(t.categories::text, '') ILIKE ${pattern}
+        OR coalesce(t.points::text, '') ILIKE ${pattern}
+      )`
+    : sql`true`;
+
+  const [countRow, items] = await Promise.all([
+    sql`SELECT count(*)::int AS total FROM topics t WHERE ${queryFilter}`,
+    sql`
+      SELECT t.id, t.title, t.categories, t.points, t.created_at
+      FROM topics t
+      WHERE ${queryFilter}
+      ORDER BY t.created_at DESC NULLS LAST, t.title
+      LIMIT ${pageSize}
+      OFFSET ${offset}
+    `,
+  ]);
+
+  return {
+    items,
+    page,
+    pageSize,
+    total: countRow.total,
+    totalPages: Math.max(1, Math.ceil(countRow.total / pageSize)),
+  };
+}
+
 async function loadBook(slug) {
   const [book] = await sql`
     SELECT
@@ -248,6 +284,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === "GET" && url.pathname === "/api/books") {
       return sendJson(request, response, 200, await loadBooks(url));
+    }
+    if (request.method === "GET" && url.pathname === "/api/topics") {
+      return sendJson(request, response, 200, await loadTopics(url));
     }
     const detailMatch = url.pathname.match(/^\/api\/books\/([^/]+)$/);
     if (request.method === "GET" && detailMatch) {
