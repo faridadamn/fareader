@@ -90,11 +90,8 @@
 
         <section id="bookList" class="book-grid"></section>
 
-        <div class="pagination">
-          <button id="previousPage" type="button">Sebelumnya</button>
-          <span id="pageLabel">1 / 1</span>
-          <button id="nextPage" type="button">Berikutnya</button>
-        </div>
+        <div id="bookLoadStatus" class="infinite-status" role="status">Memuat buku…</div>
+        <div id="bookSentinel" class="scroll-sentinel" aria-hidden="true"></div>
       </section>
 
       <section id="knowledgeView" class="view">
@@ -106,11 +103,8 @@
           </div>
         </section>
         <section id="knowledgeList" class="knowledge-grid"></section>
-        <div class="pagination">
-          <button id="previousKnowledgePage" type="button">Sebelumnya</button>
-          <span id="knowledgePageLabel">1 / 1</span>
-          <button id="nextKnowledgePage" type="button">Berikutnya</button>
-        </div>
+        <div id="knowledgeLoadStatus" class="infinite-status" role="status">Memuat knowledge…</div>
+        <div id="knowledgeSentinel" class="scroll-sentinel" aria-hidden="true"></div>
       </section>
 
       <section id="bookmarksView" class="view">
