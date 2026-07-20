@@ -4,6 +4,8 @@ const STORAGE_KEYS = {
   fontScale: "fa-reader:font-scale:v1",
   highlights: "fa-reader:highlights:v1",
   readingItems: "fa-reader:reading-items:v1",
+  sessionId: "fa-reader:session-id:v1",
+  completedEvents: "fa-reader:completed-events:v1",
 };
 
 const CONFIGURED_API_BASE = String(window.FA_READER_API_BASE || "").replace(/\/$/, "");
@@ -18,6 +20,10 @@ const state = {
   knowledgePage: 1,
   knowledgeTotalPages: 1,
   knowledgeItems: [],
+  booksLoading: false,
+  knowledgeLoading: false,
+  booksHasMore: true,
+  knowledgeHasMore: true,
   activeView: "library",
   selectedSlug: null,
   currentBook: null,
@@ -31,6 +37,9 @@ const state = {
   fontScale: readStorage(STORAGE_KEYS.fontScale, 1),
   readerScrollCleanup: null,
   searchTimer: null,
+  sessionId: getOrCreateSessionId(),
+  completedEvents: new Set(readStorage(STORAGE_KEYS.completedEvents, [])),
+  completionPending: new Set(),
 };
 
 const elements = {
@@ -42,17 +51,16 @@ const elements = {
   searchForm: document.querySelector("#searchForm"),
   searchInput: document.querySelector("#searchInput"),
   categoryFilter: document.querySelector("#categoryFilter"),
+  sortFilter: document.querySelector("#sortFilter"),
   bookList: document.querySelector("#bookList"),
   bookmarkList: document.querySelector("#bookmarkList"),
   highlightList: document.querySelector("#highlightList"),
   knowledgeList: document.querySelector("#knowledgeList"),
   knowledgeMeta: document.querySelector("#knowledgeMeta"),
-  previousKnowledgePage: document.querySelector("#previousKnowledgePage"),
-  nextKnowledgePage: document.querySelector("#nextKnowledgePage"),
-  knowledgePageLabel: document.querySelector("#knowledgePageLabel"),
-  previousPage: document.querySelector("#previousPage"),
-  nextPage: document.querySelector("#nextPage"),
-  pageLabel: document.querySelector("#pageLabel"),
+  bookLoadStatus: document.querySelector("#bookLoadStatus"),
+  bookSentinel: document.querySelector("#bookSentinel"),
+  knowledgeLoadStatus: document.querySelector("#knowledgeLoadStatus"),
+  knowledgeSentinel: document.querySelector("#knowledgeSentinel"),
   reader: document.querySelector("#reader"),
   continuePanel: document.querySelector("#continuePanel"),
   supportModal: document.querySelector("#supportModal"),
@@ -77,6 +85,54 @@ function readStorage(key, fallback) {
 
 function writeStorage(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function getOrCreateSessionId() {
+  const existing = localStorage.getItem(STORAGE_KEYS.sessionId);
+  if (existing) return existing;
+  const created = crypto.randomUUID?.()
+    || `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  localStorage.setItem(STORAGE_KEYS.sessionId, created);
+  return created;
+}
+
+async function postJson(url, body) {
+  const response = await fetch(`${API_BASE}${url}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "Permintaan gagal.");
+  return payload;
+}
+
+function trackBookEvent(eventName, slug) {
+  if (!slug) return;
+  postJson("/api/events", {
+    event_name: eventName,
+    slug,
+    session_id: state.sessionId,
+  }).catch(() => {
+    // Analytics must never interrupt reading.
+  });
+}
+
+function trackBookCompletion(slug) {
+  if (state.completedEvents.has(slug) || state.completionPending.has(slug)) return;
+  state.completionPending.add(slug);
+  postJson("/api/events", {
+    event_name: "book_completed",
+    slug,
+    session_id: state.sessionId,
+  }).then(() => {
+    state.completedEvents.add(slug);
+    writeStorage(STORAGE_KEYS.completedEvents, Array.from(state.completedEvents));
+  }).catch(() => {
+    // A later scroll can retry if the analytics request failed.
+  }).finally(() => {
+    state.completionPending.delete(slug);
+  });
 }
 
 function applyFontScale() {
@@ -441,56 +497,76 @@ async function loadMeta() {
   updateStats();
 }
 
-async function loadBooks() {
+async function loadBooks({ reset = state.page === 1 } = {}) {
+  if (state.booksLoading) return;
+  state.booksLoading = true;
+  elements.bookLoadStatus.textContent = reset ? "Memuat buku…" : "Memuat buku berikutnya…";
+
   const params = new URLSearchParams({
     q: elements.searchInput.value.trim(),
     category: elements.categoryFilter.value,
+    sort: elements.sortFilter.value,
     page: state.page,
     pageSize: 18,
   });
-  const payload = await getJson(`/api/books?${params}`);
-  state.libraryItems = payload.items;
-  for (const item of payload.items) {
-    if (state.bookmarks.has(item.slug)) state.bookmarkItems.set(item.slug, item);
-    if (state.progress[item.slug]) state.readingItems.set(item.slug, item);
+
+  try {
+    const payload = await getJson(`/api/books?${params}`);
+    state.libraryItems = reset
+      ? payload.items
+      : [...state.libraryItems, ...payload.items];
+    for (const item of payload.items) {
+      if (state.bookmarks.has(item.slug)) state.bookmarkItems.set(item.slug, item);
+      if (state.progress[item.slug]) state.readingItems.set(item.slug, item);
+    }
+    state.totalPages = payload.totalPages;
+    state.booksHasMore = payload.page < payload.totalPages;
+    elements.resultMeta.textContent = `${formatNumber.format(payload.total)} hasil`;
+    elements.bookLoadStatus.textContent = state.booksHasMore
+      ? `${formatNumber.format(state.libraryItems.length)} buku dimuat · scroll untuk lanjut`
+      : `Semua ${formatNumber.format(payload.total)} buku sudah dimuat`;
+    elements.bookSentinel.classList.toggle("is-hidden", !state.booksHasMore);
+    renderBookLists();
+    renderContinuePanel();
+  } catch (error) {
+    if (!reset) state.page = Math.max(1, state.page - 1);
+    elements.bookLoadStatus.textContent = `Gagal memuat buku: ${error.message}`;
+  } finally {
+    state.booksLoading = false;
   }
-  state.totalPages = payload.totalPages;
-  elements.resultMeta.textContent = `${formatNumber.format(payload.total)} hasil`;
-  elements.pageLabel.textContent = `${payload.page} / ${payload.totalPages}`;
-  elements.previousPage.disabled = payload.page <= 1;
-  elements.nextPage.disabled = payload.page >= payload.totalPages;
-  renderBookLists();
-  renderContinuePanel();
 }
 
+async function loadKnowledge({ reset = state.knowledgePage === 1 } = {}) {
+  if (state.knowledgeLoading) return;
+  state.knowledgeLoading = true;
+  elements.knowledgeLoadStatus.textContent = reset
+    ? "Memuat knowledge…"
+    : "Memuat knowledge berikutnya…";
 
-async function loadKnowledge() {
   const params = new URLSearchParams({
     q: elements.searchInput.value.trim(),
     page: state.knowledgePage,
     pageSize: 18,
   });
-  elements.knowledgeList.innerHTML = `
-    <article class="knowledge-card knowledge-loading">
-      <p>Memuat knowledge…</p>
-    </article>
-  `;
+
   try {
     const payload = await getJson(`/api/topics?${params}`);
-    state.knowledgeItems = payload.items;
+    state.knowledgeItems = reset
+      ? payload.items
+      : [...state.knowledgeItems, ...payload.items];
     state.knowledgeTotalPages = payload.totalPages;
+    state.knowledgeHasMore = payload.page < payload.totalPages;
     elements.knowledgeMeta.textContent = `${formatNumber.format(payload.total)} knowledge tersedia`;
-    elements.knowledgePageLabel.textContent = `${payload.page} / ${payload.totalPages}`;
-    elements.previousKnowledgePage.disabled = payload.page <= 1;
-    elements.nextKnowledgePage.disabled = payload.page >= payload.totalPages;
+    elements.knowledgeLoadStatus.textContent = state.knowledgeHasMore
+      ? `${formatNumber.format(state.knowledgeItems.length)} knowledge dimuat · scroll untuk lanjut`
+      : `Semua ${formatNumber.format(payload.total)} knowledge sudah dimuat`;
+    elements.knowledgeSentinel.classList.toggle("is-hidden", !state.knowledgeHasMore);
     renderKnowledge();
   } catch (error) {
-    elements.knowledgeList.innerHTML = `
-      <article class="knowledge-card">
-        <h3>Knowledge gagal dimuat</h3>
-        <p>${escapeHtml(error.message)}</p>
-      </article>
-    `;
+    if (!reset) state.knowledgePage = Math.max(1, state.knowledgePage - 1);
+    elements.knowledgeLoadStatus.textContent = `Gagal memuat: ${error.message}`;
+  } finally {
+    state.knowledgeLoading = false;
   }
 }
 
@@ -557,6 +633,10 @@ function bookCard(book) {
         ${book.status !== "published" ? tag("Preview", "preview") : ""}
       </div>
       <div class="card-footer">
+        <span class="popularity-meta">
+          ${formatNumber.format(book.unique_readers_30d || 0)} pembaca ·
+          ${formatNumber.format(book.total_opens_30d || 0)} dibuka
+        </span>
         ${progressRing(percent)}
       </div>
       <button type="button" class="primary-button" data-open="${escapeHtml(book.slug)}">
@@ -677,9 +757,9 @@ function renderContinuePanel() {
 
 async function selectBook(slug) {
   state.selectedSlug = slug;
-  await loadBooks();
   const book = await getJson(`/api/books/${encodeURIComponent(slug)}`);
   state.currentBook = book;
+  trackBookEvent("book_opened", slug);
   rememberReadingItem(book);
   if (state.bookmarks.has(slug)) state.bookmarkItems.set(slug, book);
   if (!state.progress[slug] && book.sections.length) {
@@ -826,6 +906,10 @@ function setupReaderScrollTracking(book) {
         activeIndex = Number(section.dataset.readerSection);
       }
     }
+    const lastSection = sections[sections.length - 1];
+    if (lastSection.getBoundingClientRect().bottom <= window.innerHeight * 0.95) {
+      trackBookCompletion(book.slug);
+    }
     const currentIndex = state.progress[book.slug]?.sectionIndex ?? 0;
     if (activeIndex !== currentIndex) {
       saveProgress(book.slug, activeIndex, book.sections.length);
@@ -845,6 +929,7 @@ function setupReaderScrollTracking(book) {
     }
   };
   window.addEventListener("scroll", onScroll, { passive: true });
+  requestAnimationFrame(syncActiveSection);
   state.readerScrollCleanup = () => {
     window.removeEventListener("scroll", onScroll);
     state.readerScrollCleanup = null;
@@ -881,25 +966,39 @@ elements.categoryFilter.addEventListener("change", () => {
   loadBooks();
 });
 
-elements.previousPage.addEventListener("click", () => {
-  state.page = Math.max(1, state.page - 1);
+elements.sortFilter.addEventListener("change", () => {
+  state.page = 1;
   loadBooks();
 });
 
-elements.nextPage.addEventListener("click", () => {
-  state.page = Math.min(state.totalPages, state.page + 1);
-  loadBooks();
-});
+function setupInfiniteScroll() {
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      if (
+        entry.target === elements.bookSentinel
+        && state.activeView === "library"
+        && state.booksHasMore
+        && !state.booksLoading
+      ) {
+        state.page += 1;
+        loadBooks({ reset: false });
+      }
+      if (
+        entry.target === elements.knowledgeSentinel
+        && state.activeView === "knowledge"
+        && state.knowledgeHasMore
+        && !state.knowledgeLoading
+      ) {
+        state.knowledgePage += 1;
+        loadKnowledge({ reset: false });
+      }
+    }
+  }, { rootMargin: "500px 0px" });
 
-elements.previousKnowledgePage.addEventListener("click", () => {
-  state.knowledgePage = Math.max(1, state.knowledgePage - 1);
-  loadKnowledge();
-});
-
-elements.nextKnowledgePage.addEventListener("click", () => {
-  state.knowledgePage = Math.min(state.knowledgeTotalPages, state.knowledgePage + 1);
-  loadKnowledge();
-});
+  observer.observe(elements.bookSentinel);
+  observer.observe(elements.knowledgeSentinel);
+}
 
 document.querySelectorAll("[data-view]").forEach((item) => {
   item.addEventListener("click", (event) => {
@@ -937,6 +1036,7 @@ try {
   applyFontScale();
   await loadMeta();
   await loadBooks();
+  setupInfiniteScroll();
   updateStats();
 } catch (error) {
   elements.reader.innerHTML = `

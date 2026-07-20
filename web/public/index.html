@@ -83,18 +83,22 @@
             <h2>Perpustakaan</h2>
             <p id="resultMeta">Memuat katalog…</p>
           </div>
-          <select id="categoryFilter" aria-label="Filter kategori">
-            <option value="">Semua kategori</option>
-          </select>
+          <div class="catalog-filters">
+            <select id="sortFilter" aria-label="Urutkan buku">
+              <option value="popular">Terpopuler 30 hari</option>
+              <option value="newest">Terbaru</option>
+              <option value="title">Judul A–Z</option>
+            </select>
+            <select id="categoryFilter" aria-label="Filter kategori">
+              <option value="">Semua kategori</option>
+            </select>
+          </div>
         </section>
 
         <section id="bookList" class="book-grid"></section>
 
-        <div class="pagination">
-          <button id="previousPage" type="button">Sebelumnya</button>
-          <span id="pageLabel">1 / 1</span>
-          <button id="nextPage" type="button">Berikutnya</button>
-        </div>
+        <div id="bookLoadStatus" class="infinite-status" role="status">Memuat buku…</div>
+        <div id="bookSentinel" class="scroll-sentinel" aria-hidden="true"></div>
       </section>
 
       <section id="knowledgeView" class="view">
@@ -106,11 +110,8 @@
           </div>
         </section>
         <section id="knowledgeList" class="knowledge-grid"></section>
-        <div class="pagination">
-          <button id="previousKnowledgePage" type="button">Sebelumnya</button>
-          <span id="knowledgePageLabel">1 / 1</span>
-          <button id="nextKnowledgePage" type="button">Berikutnya</button>
-        </div>
+        <div id="knowledgeLoadStatus" class="infinite-status" role="status">Memuat knowledge…</div>
+        <div id="knowledgeSentinel" class="scroll-sentinel" aria-hidden="true"></div>
       </section>
 
       <section id="bookmarksView" class="view">
