@@ -316,6 +316,7 @@ function rememberReadingItem(book) {
     slug: book.slug,
     title: book.title,
     original_author: book.original_author,
+    cover_url: book.cover_url || "",
     reading_time_minutes: book.reading_time_minutes,
     status: book.status,
     categories: book.categories || [],
@@ -517,6 +518,24 @@ function renderKnowledge() {
   `).join("");
 }
 
+function coverContent(book) {
+  const coverUrl = safeContentUrl(book.cover_url, { image: true });
+  return `
+    <span class="cover-fallback" aria-hidden="true">${escapeHtml(initials(book.title))}</span>
+    ${coverUrl ? `
+      <img class="cover-image" src="${escapeHtml(coverUrl)}" alt="" loading="lazy" decoding="async">
+    ` : ""}
+  `;
+}
+
+function wireCoverImages(root = document) {
+  root.querySelectorAll(".cover-image").forEach((image) => {
+    const hideBrokenImage = () => image.remove();
+    image.addEventListener("error", hideBrokenImage, { once: true });
+    if (image.complete && image.naturalWidth === 0) hideBrokenImage();
+  });
+}
+
 function bookCard(book) {
   const percent = progressFor(book.slug, book.section_count || book.sections?.length || 0);
   const saved = state.bookmarks.has(book.slug);
@@ -524,7 +543,7 @@ function bookCard(book) {
     <article class="book-card ${book.slug === state.selectedSlug ? "active" : ""}">
       <div class="book-card-top">
         <button type="button" class="cover" data-open="${escapeHtml(book.slug)}" aria-label="Buka ${escapeHtml(book.title)}">
-          ${escapeHtml(initials(book.title))}
+          ${coverContent(book)}
         </button>
         <button type="button" class="bookmark-button ${saved ? "saved" : ""}" data-bookmark="${escapeHtml(book.slug)}" aria-label="${saved ? "Hapus bookmark" : "Simpan bookmark"}">
         </button>
@@ -548,6 +567,7 @@ function bookCard(book) {
 }
 
 function wireBookCards(root = document) {
+  wireCoverImages(root);
   root.querySelectorAll("[data-open]").forEach((button) => {
     button.addEventListener("click", () => selectBook(button.dataset.open));
   });
@@ -640,7 +660,7 @@ function renderContinuePanel() {
         const percent = progressFor(book.slug, book.section_count);
         return `
           <article class="continue-card">
-            <button type="button" class="cover" data-open="${escapeHtml(book.slug)}">${escapeHtml(initials(book.title))}</button>
+            <button type="button" class="cover" data-open="${escapeHtml(book.slug)}" aria-label="Buka ${escapeHtml(book.title)}">${coverContent(book)}</button>
             <div>
               <h3>${escapeHtml(book.title)}</h3>
               <p>${escapeHtml(book.original_author || "Penulis belum terdeteksi")} · progress ${percent}%</p>
