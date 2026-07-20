@@ -473,6 +473,9 @@ async function loadBooks({ reset = state.page === 1 } = {}) {
     elements.bookSentinel.classList.toggle("is-hidden", !state.booksHasMore);
     renderBookLists();
     renderContinuePanel();
+  } catch (error) {
+    if (!reset) state.page = Math.max(1, state.page - 1);
+    elements.bookLoadStatus.textContent = `Gagal memuat buku: ${error.message}`;
   } finally {
     state.booksLoading = false;
   }
@@ -505,6 +508,7 @@ async function loadKnowledge({ reset = state.knowledgePage === 1 } = {}) {
     elements.knowledgeSentinel.classList.toggle("is-hidden", !state.knowledgeHasMore);
     renderKnowledge();
   } catch (error) {
+    if (!reset) state.knowledgePage = Math.max(1, state.knowledgePage - 1);
     elements.knowledgeLoadStatus.textContent = `Gagal memuat: ${error.message}`;
   } finally {
     state.knowledgeLoading = false;
@@ -961,9 +965,9 @@ document.querySelectorAll("[data-saved-tab]").forEach((button) => {
 
 try {
   applyFontScale();
-  setupInfiniteScroll();
   await loadMeta();
   await loadBooks();
+  setupInfiniteScroll();
   updateStats();
 } catch (error) {
   elements.reader.innerHTML = `
