@@ -39,6 +39,7 @@ const state = {
   searchTimer: null,
   sessionId: getOrCreateSessionId(),
   completedEvents: new Set(readStorage(STORAGE_KEYS.completedEvents, [])),
+  completionPending: new Set(),
 };
 
 const elements = {
@@ -118,10 +119,20 @@ function trackBookEvent(eventName, slug) {
 }
 
 function trackBookCompletion(slug) {
-  if (state.completedEvents.has(slug)) return;
-  state.completedEvents.add(slug);
-  writeStorage(STORAGE_KEYS.completedEvents, Array.from(state.completedEvents));
-  trackBookEvent("book_completed", slug);
+  if (state.completedEvents.has(slug) || state.completionPending.has(slug)) return;
+  state.completionPending.add(slug);
+  postJson("/api/events", {
+    event_name: "book_completed",
+    slug,
+    session_id: state.sessionId,
+  }).then(() => {
+    state.completedEvents.add(slug);
+    writeStorage(STORAGE_KEYS.completedEvents, Array.from(state.completedEvents));
+  }).catch(() => {
+    // A later scroll can retry if the analytics request failed.
+  }).finally(() => {
+    state.completionPending.delete(slug);
+  });
 }
 
 function applyFontScale() {
@@ -746,7 +757,6 @@ function renderContinuePanel() {
 
 async function selectBook(slug) {
   state.selectedSlug = slug;
-  await loadBooks();
   const book = await getJson(`/api/books/${encodeURIComponent(slug)}`);
   state.currentBook = book;
   trackBookEvent("book_opened", slug);
