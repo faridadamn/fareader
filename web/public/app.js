@@ -4,6 +4,8 @@ const STORAGE_KEYS = {
   fontScale: "fa-reader:font-scale:v1",
   highlights: "fa-reader:highlights:v1",
   readingItems: "fa-reader:reading-items:v1",
+  sessionId: "fa-reader:session-id:v1",
+  completedEvents: "fa-reader:completed-events:v1",
 };
 
 const CONFIGURED_API_BASE = String(window.FA_READER_API_BASE || "").replace(/\/$/, "");
@@ -35,6 +37,8 @@ const state = {
   fontScale: readStorage(STORAGE_KEYS.fontScale, 1),
   readerScrollCleanup: null,
   searchTimer: null,
+  sessionId: getOrCreateSessionId(),
+  completedEvents: new Set(readStorage(STORAGE_KEYS.completedEvents, [])),
 };
 
 const elements = {
@@ -46,6 +50,7 @@ const elements = {
   searchForm: document.querySelector("#searchForm"),
   searchInput: document.querySelector("#searchInput"),
   categoryFilter: document.querySelector("#categoryFilter"),
+  sortFilter: document.querySelector("#sortFilter"),
   bookList: document.querySelector("#bookList"),
   bookmarkList: document.querySelector("#bookmarkList"),
   highlightList: document.querySelector("#highlightList"),
@@ -79,6 +84,44 @@ function readStorage(key, fallback) {
 
 function writeStorage(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
+}
+
+function getOrCreateSessionId() {
+  const existing = localStorage.getItem(STORAGE_KEYS.sessionId);
+  if (existing) return existing;
+  const created = crypto.randomUUID?.()
+    || `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  localStorage.setItem(STORAGE_KEYS.sessionId, created);
+  return created;
+}
+
+async function postJson(url, body) {
+  const response = await fetch(`${API_BASE}${url}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "Permintaan gagal.");
+  return payload;
+}
+
+function trackBookEvent(eventName, slug) {
+  if (!slug) return;
+  postJson("/api/events", {
+    event_name: eventName,
+    slug,
+    session_id: state.sessionId,
+  }).catch(() => {
+    // Analytics must never interrupt reading.
+  });
+}
+
+function trackBookCompletion(slug) {
+  if (state.completedEvents.has(slug)) return;
+  state.completedEvents.add(slug);
+  writeStorage(STORAGE_KEYS.completedEvents, Array.from(state.completedEvents));
+  trackBookEvent("book_completed", slug);
 }
 
 function applyFontScale() {
@@ -451,6 +494,7 @@ async function loadBooks({ reset = state.page === 1 } = {}) {
   const params = new URLSearchParams({
     q: elements.searchInput.value.trim(),
     category: elements.categoryFilter.value,
+    sort: elements.sortFilter.value,
     page: state.page,
     pageSize: 18,
   });
@@ -578,6 +622,10 @@ function bookCard(book) {
         ${book.status !== "published" ? tag("Preview", "preview") : ""}
       </div>
       <div class="card-footer">
+        <span class="popularity-meta">
+          ${formatNumber.format(book.unique_readers_30d || 0)} pembaca ·
+          ${formatNumber.format(book.total_opens_30d || 0)} dibuka
+        </span>
         ${progressRing(percent)}
       </div>
       <button type="button" class="primary-button" data-open="${escapeHtml(book.slug)}">
@@ -701,6 +749,7 @@ async function selectBook(slug) {
   await loadBooks();
   const book = await getJson(`/api/books/${encodeURIComponent(slug)}`);
   state.currentBook = book;
+  trackBookEvent("book_opened", slug);
   rememberReadingItem(book);
   if (state.bookmarks.has(slug)) state.bookmarkItems.set(slug, book);
   if (!state.progress[slug] && book.sections.length) {
@@ -847,6 +896,10 @@ function setupReaderScrollTracking(book) {
         activeIndex = Number(section.dataset.readerSection);
       }
     }
+    const lastSection = sections[sections.length - 1];
+    if (lastSection.getBoundingClientRect().bottom <= window.innerHeight * 0.95) {
+      trackBookCompletion(book.slug);
+    }
     const currentIndex = state.progress[book.slug]?.sectionIndex ?? 0;
     if (activeIndex !== currentIndex) {
       saveProgress(book.slug, activeIndex, book.sections.length);
@@ -866,6 +919,7 @@ function setupReaderScrollTracking(book) {
     }
   };
   window.addEventListener("scroll", onScroll, { passive: true });
+  requestAnimationFrame(syncActiveSection);
   state.readerScrollCleanup = () => {
     window.removeEventListener("scroll", onScroll);
     state.readerScrollCleanup = null;
@@ -898,6 +952,11 @@ elements.searchInput.addEventListener("input", () => {
 });
 
 elements.categoryFilter.addEventListener("change", () => {
+  state.page = 1;
+  loadBooks();
+});
+
+elements.sortFilter.addEventListener("change", () => {
   state.page = 1;
   loadBooks();
 });
