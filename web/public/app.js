@@ -484,9 +484,6 @@ function setView(view) {
 
 async function loadMeta() {
   const meta = await getJson("/api/meta");
-  elements.modeBadge.textContent = meta.preview
-    ? "Preview: published + siap review"
-    : "Publik: published only";
   elements.totalBooks.textContent = formatNumber.format(meta.total);
   for (const category of meta.categories) {
     const option = document.createElement("option");
@@ -630,7 +627,7 @@ function bookCard(book) {
       </div>
       <div class="tag-row">
         ${(book.categories || []).slice(0, 2).map((value) => tag(value)).join("")}
-        ${book.status !== "published" ? tag("Preview", "preview") : ""}
+
       </div>
       <div class="card-footer">
         <span class="popularity-meta">
@@ -774,9 +771,7 @@ function renderReader(book) {
   const percent = progressFor(book.slug, book.sections.length);
   const saved = state.bookmarks.has(book.slug);
   elements.reader.innerHTML = `
-    ${book.preview && book.status !== "published" ? `
-      <div class="notice">Mode preview aktif. Buku ini belum published dan tidak tampil di mode publik.</div>
-    ` : ""}
+
     <div class="reader-shell">
       <aside class="toc">
         <strong>Daftar isi</strong>
