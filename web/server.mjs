@@ -12,8 +12,6 @@ const fallbackEnvPath = path.join(workspaceDirectory, "belajar-scraping", ".env"
 const envPath = process.env.ENV_PATH || path.join(projectDirectory, ".env");
 const port = Number(process.env.PORT || 4176);
 const host = process.env.HOST || "0.0.0.0";
-const previewMode = process.argv.includes("--preview")
-  || process.env.PREVIEW_CATALOG === "1";
 const allowedOrigins = new Set(
   (process.env.CORS_ORIGIN || "*")
     .split(",")
@@ -390,8 +388,7 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  const mode = previewMode ? "preview" : "published-only";
-  console.log(`Reader app (${mode}): http://${host}:${port}`);
+  console.log(`Reader app (public-catalog): http://${host}:${port}`);
 });
 
 async function shutdown() {
