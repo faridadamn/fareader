@@ -1,5 +1,7 @@
 import {
   handleOptions,
+  loadInsightDetail,
+  loadInsights,
   loadTopicDetail,
   loadTopics,
   requestUrl,
@@ -14,7 +16,17 @@ export default async function handler(request, response) {
       return sendJson(request, response, 405, { error: "Method not allowed" });
     }
     const url = requestUrl(request);
+    const resource = String(url.searchParams.get("resource") || "topics").trim();
     const topicId = String(url.searchParams.get("id") || "").trim();
+    if (resource === "insights") {
+      if (topicId) {
+        const insight = await loadInsightDetail(topicId);
+        return insight
+          ? sendJson(request, response, 200, insight)
+          : sendJson(request, response, 404, { error: "Insight belum tersedia." });
+      }
+      return sendJson(request, response, 200, await loadInsights(url));
+    }
     if (topicId) {
       const topic = await loadTopicDetail(topicId);
       return topic

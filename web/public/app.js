@@ -589,7 +589,8 @@ async function loadInsights() {
   elements.insightMeta.textContent = "Memuat insight…";
   try {
     const params = new URLSearchParams({ q: elements.searchInput.value.trim(), limit: 60 });
-    const payload = await getJson(`/api/insights?${params}`);
+    params.set("resource", "insights");
+    const payload = await getJson(`/api/topics?${params}`);
     state.insightItems = payload.items;
     elements.insightMeta.textContent = `${formatNumber.format(payload.total)} insight tersedia`;
     renderInsights();
@@ -640,7 +641,7 @@ async function openInsightDetail(insightId) {
   window.scrollTo({ top: 0, behavior: "smooth" });
   elements.insightDetail.innerHTML = `<div class="knowledge-detail-loading">Memuat insight…</div>`;
   try {
-    const insight = await getJson(`/api/insights?id=${encodeURIComponent(insightId)}`);
+    const insight = await getJson(`/api/topics?resource=insights&id=${encodeURIComponent(insightId)}`);
     const sourceUrl = safeContentUrl(insight.canonical_url);
     elements.insightDetail.innerHTML = `
       <header class="knowledge-detail-header"><div class="tag-row">${insight.status === "draft" ? tag("Draft", "draft-tag") : ""}</div><p class="eyebrow">Insight</p><h1>${escapeHtml(insight.title)}</h1><p class="insight-thesis">${escapeHtml(insight.thesis || "")}</p></header>
