@@ -602,7 +602,7 @@ async function loadInsights() {
 function insightCard(insight, compact = false) {
   return `
     <article class="insight-card ${compact ? "compact" : ""}">
-      <div class="tag-row">${(insight.content_types || []).slice(0, 2).map((value) => tag(value)).join("")}</div>
+      <div class="tag-row">${insight.status === "draft" ? tag("Draft", "draft-tag") : ""}${(insight.content_types || []).slice(0, 2).map((value) => tag(value)).join("")}</div>
       <h3>${escapeHtml(insight.title || "Tanpa judul")}</h3>
       <p>${escapeHtml(insight.thesis || "Gagasan pilihan dari FA Reader.")}</p>
       <footer><span>${insight.reading_time_minutes || 1} menit baca</span><button type="button" class="ghost-button" data-open-insight="${escapeHtml(insight.id)}">Baca</button></footer>
@@ -643,7 +643,7 @@ async function openInsightDetail(insightId) {
     const insight = await getJson(`/api/insights?id=${encodeURIComponent(insightId)}`);
     const sourceUrl = safeContentUrl(insight.canonical_url);
     elements.insightDetail.innerHTML = `
-      <header class="knowledge-detail-header"><p class="eyebrow">Insight</p><h1>${escapeHtml(insight.title)}</h1><p class="insight-thesis">${escapeHtml(insight.thesis || "")}</p></header>
+      <header class="knowledge-detail-header"><div class="tag-row">${insight.status === "draft" ? tag("Draft", "draft-tag") : ""}</div><p class="eyebrow">Insight</p><h1>${escapeHtml(insight.title)}</h1><p class="insight-thesis">${escapeHtml(insight.thesis || "")}</p></header>
       <div class="reader-body"><div class="reader-content knowledge-detail-content"><p>${markdownToHtml(insight.content_markdown)}</p></div></div>
       ${insight.attribution ? `<footer class="insight-attribution"><strong>Sumber inspirasi</strong><p>${escapeHtml(insight.attribution)}</p>${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Baca sumber asli →</a>` : ""}</footer>` : ""}`;
   } catch (error) {

@@ -260,11 +260,11 @@ export async function loadInsights(url) {
     ? sql`(d.title ILIKE ${pattern} OR d.thesis ILIKE ${pattern} OR d.content_markdown ILIKE ${pattern})`
     : sql`true`;
   const items = await sql`
-    SELECT d.id, d.title, d.thesis, d.content_types, d.format, d.attribution,
+    SELECT d.id, d.title, d.thesis, d.content_types, d.format, d.attribution, d.status,
       d.published_at, d.created_at,
       greatest(1, ceil(length(coalesce(d.content_markdown, '')) / 1000.0))::int AS reading_time_minutes
     FROM content_drafts d
-    WHERE d.status = 'published' AND ${queryFilter}
+    WHERE d.status IN ('draft', 'published') AND ${queryFilter}
     ORDER BY d.published_at DESC NULLS LAST, d.created_at DESC
     LIMIT ${limit}
   `;
@@ -274,12 +274,12 @@ export async function loadInsights(url) {
 export async function loadInsightDetail(insightId) {
   const sql = getSql();
   const [insight] = await sql`
-    SELECT d.id, d.title, d.thesis, d.content_types, d.format, d.posts,
+    SELECT d.id, d.title, d.thesis, d.content_types, d.format, d.posts, d.status,
       d.content_markdown, d.attribution, d.published_at, s.canonical_url,
       s.title AS source_title, s.author AS source_author
     FROM content_drafts d
     LEFT JOIN content_sources s ON s.id = d.source_id
-    WHERE d.id = ${insightId} AND d.status = 'published'
+    WHERE d.id = ${insightId} AND d.status IN ('draft', 'published')
     LIMIT 1
   `;
   return insight || null;
