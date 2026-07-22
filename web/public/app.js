@@ -20,11 +20,12 @@ const state = {
   knowledgePage: 1,
   knowledgeTotalPages: 1,
   knowledgeItems: [],
+  insightItems: [],
   booksLoading: false,
   knowledgeLoading: false,
   booksHasMore: true,
   knowledgeHasMore: true,
-  activeView: "library",
+  activeView: "home",
   selectedSlug: null,
   currentBook: null,
   libraryItems: [],
@@ -65,11 +66,19 @@ const elements = {
   knowledgeBackButton: document.querySelector("#knowledgeBackButton"),
   reader: document.querySelector("#reader"),
   continuePanel: document.querySelector("#continuePanel"),
+  homeShelves: document.querySelector("#homeShelves"),
+  insightList: document.querySelector("#insightList"),
+  insightMeta: document.querySelector("#insightMeta"),
+  insightDetail: document.querySelector("#insightDetail"),
+  insightBackButton: document.querySelector("#insightBackButton"),
   supportModal: document.querySelector("#supportModal"),
   views: {
-    library: document.querySelector("#libraryView"),
+    home: document.querySelector("#homeView"),
+    books: document.querySelector("#booksView"),
     knowledge: document.querySelector("#knowledgeView"),
     knowledgeDetail: document.querySelector("#knowledgeDetailView"),
+    insight: document.querySelector("#insightView"),
+    insightDetail: document.querySelector("#insightDetailView"),
     bookmarks: document.querySelector("#bookmarksView"),
     reader: document.querySelector("#readerView"),
   },
@@ -474,14 +483,18 @@ function setView(view) {
   Object.entries(elements.views).forEach(([key, element]) => {
     element.classList.toggle("active-view", key === view);
   });
-  const navView = view === "knowledgeDetail" ? "knowledge" : view;
+  const navView = view === "knowledgeDetail" ? "knowledge"
+    : view === "insightDetail" ? "insight"
+      : view === "reader" ? "books" : view;
   document.querySelectorAll("[data-view]").forEach((item) => {
     item.classList.toggle("active", item.dataset.view === navView);
   });
   elements.searchInput.placeholder = navView === "knowledge"
     ? "Cari knowledge, kategori, poin, atau notes…"
-    : "Cari buku, penulis, atau topik…";
+    : navView === "insight" ? "Cari insight atau gagasan…"
+      : "Cari buku, penulis, atau topik…";
   if (view === "knowledge" && !state.knowledgeItems.length) loadKnowledge();
+  if (view === "insight" && !state.insightItems.length) loadInsights();
   if (view === "bookmarks") renderBookmarks();
   if (view === "bookmarks") setSavedTab(state.activeSavedTab);
 }
@@ -529,6 +542,7 @@ async function loadBooks({ reset = state.page === 1 } = {}) {
     elements.bookSentinel.classList.toggle("is-hidden", !state.booksHasMore);
     renderBookLists();
     renderContinuePanel();
+    renderHome();
   } catch (error) {
     if (!reset) state.page = Math.max(1, state.page - 1);
     elements.bookLoadStatus.textContent = `Gagal memuat buku: ${error.message}`;
@@ -568,6 +582,72 @@ async function loadKnowledge({ reset = state.knowledgePage === 1 } = {}) {
     elements.knowledgeLoadStatus.textContent = `Gagal memuat: ${error.message}`;
   } finally {
     state.knowledgeLoading = false;
+  }
+}
+
+async function loadInsights() {
+  elements.insightMeta.textContent = "Memuat insight…";
+  try {
+    const params = new URLSearchParams({ q: elements.searchInput.value.trim(), limit: 60 });
+    const payload = await getJson(`/api/insights?${params}`);
+    state.insightItems = payload.items;
+    elements.insightMeta.textContent = `${formatNumber.format(payload.total)} insight tersedia`;
+    renderInsights();
+    renderHome();
+  } catch (error) {
+    elements.insightMeta.textContent = `Gagal memuat insight: ${error.message}`;
+  }
+}
+
+function insightCard(insight, compact = false) {
+  return `
+    <article class="insight-card ${compact ? "compact" : ""}">
+      <div class="tag-row">${(insight.content_types || []).slice(0, 2).map((value) => tag(value)).join("")}</div>
+      <h3>${escapeHtml(insight.title || "Tanpa judul")}</h3>
+      <p>${escapeHtml(insight.thesis || "Gagasan pilihan dari FA Reader.")}</p>
+      <footer><span>${insight.reading_time_minutes || 1} menit baca</span><button type="button" class="ghost-button" data-open-insight="${escapeHtml(insight.id)}">Baca</button></footer>
+    </article>`;
+}
+
+function wireInsightCards(root = document) {
+  root.querySelectorAll("[data-open-insight]").forEach((button) => {
+    button.addEventListener("click", () => openInsightDetail(button.dataset.openInsight));
+  });
+}
+
+function renderInsights() {
+  if (!state.insightItems.length) {
+    elements.insightList.innerHTML = `<article class="insight-card"><h3>Insight segera hadir</h3><p>Tulisan yang sudah diterbitkan dari Lexis akan muncul di sini.</p></article>`;
+    return;
+  }
+  elements.insightList.innerHTML = state.insightItems.map((item) => insightCard(item)).join("");
+  wireInsightCards(elements.insightList);
+}
+
+function markdownToHtml(markdown) {
+  return escapeHtml(markdown || "")
+    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+    .replace(/^- (.+)$/gm, "<li>$1</li>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\n{2,}/g, "</p><p>")
+    .replace(/\n/g, "<br>");
+}
+
+async function openInsightDetail(insightId) {
+  setView("insightDetail");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  elements.insightDetail.innerHTML = `<div class="knowledge-detail-loading">Memuat insight…</div>`;
+  try {
+    const insight = await getJson(`/api/insights?id=${encodeURIComponent(insightId)}`);
+    const sourceUrl = safeContentUrl(insight.canonical_url);
+    elements.insightDetail.innerHTML = `
+      <header class="knowledge-detail-header"><p class="eyebrow">Insight</p><h1>${escapeHtml(insight.title)}</h1><p class="insight-thesis">${escapeHtml(insight.thesis || "")}</p></header>
+      <div class="reader-body"><div class="reader-content knowledge-detail-content"><p>${markdownToHtml(insight.content_markdown)}</p></div></div>
+      ${insight.attribution ? `<footer class="insight-attribution"><strong>Sumber inspirasi</strong><p>${escapeHtml(insight.attribution)}</p>${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Baca sumber asli →</a>` : ""}</footer>` : ""}`;
+  } catch (error) {
+    elements.insightDetail.innerHTML = `<div class="empty-state"><h2>Insight gagal dimuat</h2><p>${escapeHtml(error.message)}</p></div>`;
   }
 }
 
@@ -698,6 +778,27 @@ function wireBookCards(root = document) {
   root.querySelectorAll("[data-bookmark]").forEach((button) => {
     button.addEventListener("click", () => toggleBookmark(button.dataset.bookmark));
   });
+}
+
+function renderHome() {
+  if (!elements.homeShelves) return;
+  const books = state.libraryItems.slice(0, 10);
+  const knowledge = state.knowledgeItems.slice(0, 5);
+  const insights = state.insightItems.slice(0, 10);
+  const shelf = (title, view, body) => `
+    <section class="content-shelf">
+      <header><div><p class="eyebrow">Jelajahi</p><h2>${title}</h2></div><button type="button" class="shelf-link" data-view="${view}">Lihat semua</button></header>
+      ${body}
+    </section>`;
+  elements.homeShelves.innerHTML = [
+    shelf("Buku pilihan", "books", `<div class="horizontal-rail">${books.map(bookCard).join("")}</div>`),
+    shelf("Knowledge terbaru", "knowledge", `<div class="home-knowledge-list">${knowledge.map((topic) => `<button type="button" class="home-knowledge-item" data-open-topic="${escapeHtml(topic.id)}"><span>${escapeHtml(topic.title || "Tanpa judul")}</span><small>${(topic.points || []).length} poin penting</small></button>`).join("") || "<p>Memuat knowledge…</p>"}</div>`),
+    shelf("Insight terbaru", "insight", `<div class="horizontal-rail insight-rail">${insights.map((item) => insightCard(item, true)).join("") || "<p>Insight yang diterbitkan akan tampil di sini.</p>"}</div>`),
+  ].join("");
+  wireBookCards(elements.homeShelves);
+  wireInsightCards(elements.homeShelves);
+  elements.homeShelves.querySelectorAll("[data-open-topic]").forEach((button) => button.addEventListener("click", () => openKnowledgeDetail(button.dataset.openTopic)));
+  elements.homeShelves.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
 }
 
 function renderBookLists() {
@@ -901,6 +1002,7 @@ function setReaderSection(book, index) {
   if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
   renderBookLists();
   renderContinuePanel();
+  renderHome();
 }
 
 function updateReaderProgressUI(book, sectionIndex) {
@@ -983,10 +1085,12 @@ elements.searchForm.addEventListener("submit", (event) => {
   if (state.activeView.startsWith("knowledge")) {
     state.knowledgePage = 1;
     loadKnowledge();
+  } else if (state.activeView.startsWith("insight")) {
+    loadInsights();
   } else {
     state.page = 1;
     loadBooks();
-    setView("library");
+    setView("books");
   }
 });
 
@@ -996,6 +1100,8 @@ elements.searchInput.addEventListener("input", () => {
     if (state.activeView.startsWith("knowledge")) {
       state.knowledgePage = 1;
       loadKnowledge();
+    } else if (state.activeView.startsWith("insight")) {
+      loadInsights();
     } else {
       state.page = 1;
       loadBooks();
@@ -1019,7 +1125,7 @@ function setupInfiniteScroll() {
       if (!entry.isIntersecting) continue;
       if (
         entry.target === elements.bookSentinel
-        && state.activeView === "library"
+        && state.activeView === "books"
         && state.booksHasMore
         && !state.booksLoading
       ) {
@@ -1044,6 +1150,11 @@ function setupInfiniteScroll() {
 
 elements.knowledgeBackButton?.addEventListener("click", () => {
   setView("knowledge");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+elements.insightBackButton?.addEventListener("click", () => {
+  setView("insight");
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
@@ -1083,6 +1194,8 @@ try {
   applyFontScale();
   await loadMeta();
   await loadBooks();
+  await loadKnowledge();
+  await loadInsights();
   setupInfiniteScroll();
   updateStats();
 } catch (error) {

@@ -18,21 +18,21 @@
       </a>
 
       <nav class="side-nav" aria-label="Menu utama">
-        <a class="nav-item active" href="#library" data-view="library">
+        <a class="nav-item active" href="#home" data-view="home">
           <span>⌂</span>
           <span>Beranda</span>
+        </a>
+        <a class="nav-item" href="#books" data-view="books">
+          <span>▰</span>
+          <span>Buku</span>
         </a>
         <a class="nav-item" href="#knowledge" data-view="knowledge">
           <span>✦</span>
           <span>Knowledge</span>
         </a>
-        <a class="nav-item" href="#bookmarks" data-view="bookmarks">
-          <span>▱</span>
-          <span>Bookmark</span>
-        </a>
-        <a class="nav-item" href="#reader" data-view="reader">
-          <span>☰</span>
-          <span>Reader</span>
+        <a class="nav-item" href="#insight" data-view="insight">
+          <span>◈</span>
+          <span>Insight</span>
         </a>
       </nav>
 
@@ -55,12 +55,12 @@
         <span id="modeBadge" class="mode-badge is-hidden" aria-hidden="true"></span>
       </header>
 
-      <section id="libraryView" class="view active-view">
+      <section id="homeView" class="view active-view">
         <section class="hero-card">
           <div>
             <p class="eyebrow">FA Reader</p>
             <h1>Baca lebih fokus. Simpan wawasan. Tumbuhkan diri setiap hari.</h1>
-            <p>Temukan ringkasan buku, lanjutkan bacaan, dan simpan buku penting untuk dibaca lagi.</p>
+            <p>Satu tempat untuk menemukan buku, knowledge praktis, dan insight pilihan.</p>
           </div>
           <div class="hero-stats">
             <div>
@@ -80,7 +80,10 @@
         </section>
 
         <section id="continuePanel" class="continue-panel is-hidden"></section>
+        <section id="homeShelves" class="home-shelves" aria-label="Rekomendasi untuk Anda"></section>
+      </section>
 
+      <section id="booksView" class="view">
         <section class="section-heading">
           <div>
             <h2>Perpustakaan</h2>
@@ -102,6 +105,22 @@
 
         <div id="bookLoadStatus" class="infinite-status" role="status">Memuat buku…</div>
         <div id="bookSentinel" class="scroll-sentinel" aria-hidden="true"></div>
+      </section>
+
+      <section id="insightView" class="view">
+        <section class="section-heading">
+          <div>
+            <p class="eyebrow">Insight</p>
+            <h2>Gagasan yang layak dibawa pulang</h2>
+            <p id="insightMeta">Memuat insight…</p>
+          </div>
+        </section>
+        <section id="insightList" class="insight-grid"></section>
+      </section>
+
+      <section id="insightDetailView" class="view">
+        <button id="insightBackButton" type="button" class="ghost-button knowledge-back-button">← Kembali ke Insight</button>
+        <article id="insightDetail" class="reader-article knowledge-detail-shell"></article>
       </section>
 
       <section id="knowledgeView" class="view">
@@ -150,21 +169,21 @@
   </div>
 
   <nav class="bottom-nav" aria-label="Menu mobile">
-    <button class="bottom-item active" type="button" data-view="library">
+    <button class="bottom-item active" type="button" data-view="home">
       <span>⌂</span>
       <small>Beranda</small>
+    </button>
+    <button class="bottom-item" type="button" data-view="books">
+      <span>▰</span>
+      <small>Buku</small>
     </button>
     <button class="bottom-item" type="button" data-view="knowledge">
       <span>✦</span>
       <small>Knowledge</small>
     </button>
-    <button class="bottom-item" type="button" data-view="bookmarks">
-      <span>▱</span>
-      <small>Bookmark</small>
-    </button>
-    <button class="bottom-item" type="button" data-view="reader">
-      <span>☰</span>
-      <small>Reader</small>
+    <button class="bottom-item" type="button" data-view="insight">
+      <span>◈</span>
+      <small>Insight</small>
     </button>
   </nav>
 
