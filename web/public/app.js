@@ -642,11 +642,16 @@ async function openInsightDetail(insightId) {
   elements.insightDetail.innerHTML = `<div class="knowledge-detail-loading">Memuat insight…</div>`;
   try {
     const insight = await getJson(`/api/topics?resource=insights&id=${encodeURIComponent(insightId)}`);
-    const sourceUrl = safeContentUrl(insight.canonical_url);
+    const postContent = Array.isArray(insight.posts) && insight.posts.length
+      ? insight.posts
+        .slice()
+        .sort((a, b) => Number(a.number || 0) - Number(b.number || 0))
+        .map((post) => `<section class="insight-post"><p>${escapeHtml(post.text || "").replaceAll("\n", "<br>")}</p></section>`)
+        .join('<hr class="insight-divider">')
+      : `<p>${markdownToHtml(insight.content_markdown)}</p>`;
     elements.insightDetail.innerHTML = `
-      <header class="knowledge-detail-header"><div class="tag-row">${insight.status === "draft" ? tag("Draft", "draft-tag") : ""}</div><p class="eyebrow">Insight</p><h1>${escapeHtml(insight.title)}</h1><p class="insight-thesis">${escapeHtml(insight.thesis || "")}</p></header>
-      <div class="reader-body"><div class="reader-content knowledge-detail-content"><p>${markdownToHtml(insight.content_markdown)}</p></div></div>
-      ${insight.attribution ? `<footer class="insight-attribution"><strong>Sumber inspirasi</strong><p>${escapeHtml(insight.attribution)}</p>${sourceUrl ? `<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Baca sumber asli →</a>` : ""}</footer>` : ""}`;
+      <header class="knowledge-detail-header"><div class="tag-row">${insight.status === "draft" ? tag("Draft", "draft-tag") : ""}</div><p class="eyebrow">Insight</p><h1>${escapeHtml(insight.title)}</h1></header>
+      <div class="reader-body"><div class="reader-content knowledge-detail-content insight-content">${postContent}</div></div>`;
   } catch (error) {
     elements.insightDetail.innerHTML = `<div class="empty-state"><h2>Insight gagal dimuat</h2><p>${escapeHtml(error.message)}</p></div>`;
   }

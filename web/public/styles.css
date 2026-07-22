@@ -353,6 +353,14 @@ a {
 .insight-thesis { max-width: 760px; color: var(--muted); font-size: 19px; line-height: 1.65; }
 .insight-attribution { margin: 32px auto 0; max-width: 760px; padding: 20px; border-left: 4px solid var(--teal-600); background: var(--cyan-50); }
 .insight-attribution a { color: var(--teal-700); font-weight: 900; }
+.insight-post p { margin: 0; white-space: normal; }
+.insight-divider {
+  width: 100%;
+  height: 1px;
+  margin: 32px 0;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--line) 10%, var(--line) 90%, transparent);
+}
 
 .hero-card {
   display: grid;
