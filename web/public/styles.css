@@ -27,11 +27,15 @@
 
 html {
   scroll-behavior: smooth;
+  width: 100%;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 92% 4%, rgba(0, 153, 168, 0.16), transparent 30%),
     radial-gradient(circle at 8% 78%, rgba(0, 153, 168, 0.11), transparent 32%),
@@ -190,7 +194,17 @@ a {
 
 .main-area {
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
   padding: 22px clamp(18px, 4vw, 46px) 48px;
+}
+
+.view,
+.home-shelves,
+.content-shelf {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 .topbar {
@@ -276,17 +290,23 @@ a {
 }
 
 .horizontal-rail {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(245px, 290px);
+  display: flex;
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
   padding: 4px 4px 18px;
   scroll-snap-type: x proximity;
   scrollbar-width: thin;
 }
 
-.horizontal-rail > * { scroll-snap-align: start; }
+.horizontal-rail > * {
+  flex: 0 0 min(290px, 78vw);
+  min-width: 0;
+  scroll-snap-align: start;
+}
 
 .home-knowledge-list {
   display: grid;
@@ -1355,7 +1375,7 @@ select {
 
 @media (max-width: 860px) {
   .home-knowledge-list, .insight-grid { grid-template-columns: 1fr; }
-  .horizontal-rail { grid-auto-columns: minmax(230px, 78vw); }
+  .horizontal-rail > * { flex-basis: min(280px, 78vw); }
   body {
     background: linear-gradient(180deg, #ffffff, #f2fbfc);
   }
