@@ -1425,14 +1425,34 @@ select {
 
   .hero-stats {
     grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.8);
   }
 
   .hero-stats div {
-    padding: 14px 10px;
+    min-width: 0;
+    padding: 14px 6px;
+    border: 0;
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+    text-align: center;
   }
 
+  .hero-stats div:last-child { border-right: 0; }
+
   .hero-stats span {
-    font-size: 21px;
+    font-size: 20px;
+  }
+
+  .hero-stats small {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    line-height: 1.25;
   }
 
   .section-heading {
@@ -1544,7 +1564,7 @@ select {
 
 @media (max-width: 420px) {
   .hero-stats {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .reader-controls {
