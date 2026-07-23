@@ -636,6 +636,31 @@ function markdownToHtml(markdown) {
     .replace(/\n/g, "<br>");
 }
 
+function renderInsightMarkdown(markdown) {
+  const source = String(markdown || "").replaceAll("\r\n", "\n");
+  const parts = source.split(/```(?:[a-z0-9_-]+)?\s*\n([\s\S]*?)```/gi);
+  return parts.map((part, index) => {
+    if (index % 2 === 1) {
+      return `<pre class="insight-code"><code>${escapeHtml(part.trim())}</code></pre>`;
+    }
+    return part
+      .trim()
+      .split(/\n{2,}/)
+      .filter(Boolean)
+      .map((block) => {
+        const lines = block.split("\n");
+        if (lines.every((line) => /^[-*]\s+/.test(line.trim()))) {
+          return `<ul>${lines.map((line) => `<li>${escapeHtml(line.trim().replace(/^[-*]\s+/, ""))}</li>`).join("")}</ul>`;
+        }
+        const escaped = escapeHtml(block)
+          .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+          .replace(/\n/g, "<br>");
+        return `<p>${escaped}</p>`;
+      })
+      .join("");
+  }).join("");
+}
+
 async function openInsightDetail(insightId) {
   setView("insightDetail");
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -646,7 +671,7 @@ async function openInsightDetail(insightId) {
       ? insight.posts
         .slice()
         .sort((a, b) => Number(a.number || 0) - Number(b.number || 0))
-        .map((post) => `<section class="insight-post"><p>${escapeHtml(post.text || "").replaceAll("\n", "<br>")}</p></section>`)
+        .map((post) => `<section class="insight-post">${renderInsightMarkdown(post.text)}</section>`)
         .join('<hr class="insight-divider">')
       : `<p>${markdownToHtml(insight.content_markdown)}</p>`;
     elements.insightDetail.innerHTML = `
