@@ -40,7 +40,13 @@ export function handleOptions(request, response) {
 }
 
 export function requireAdmin(request, response) {
-  if (!adminPassword) return true;
+  if (!adminPassword) {
+    sendJson(request, response, 503, {
+      error: "ADMIN_PASSWORD belum dikonfigurasi di server.",
+      code: "ADMIN_PASSWORD_NOT_CONFIGURED",
+    });
+    return false;
+  }
   if (request.headers["x-admin-password"] === adminPassword) return true;
   sendJson(request, response, 401, {
     error: "Password admin diperlukan.",

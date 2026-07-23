@@ -7,7 +7,30 @@
   <link rel="stylesheet" href="/admin/styles.css">
 </head>
 <body>
-  <header class="topbar">
+  <section id="loginWall" class="login-wall">
+    <div class="login-orb login-orb-one"></div>
+    <div class="login-orb login-orb-two"></div>
+    <form id="loginForm" class="login-card">
+      <a href="/" class="login-logo" aria-label="Kembali ke FA Reader">
+        <img src="/assets/fa-reader-logo.png" alt="FA Reader">
+      </a>
+      <p class="eyebrow">Admin Area</p>
+      <h1>Kelola konten dengan tenang.</h1>
+      <p class="login-copy">Masukkan password admin untuk membuka Buku, Knowledge, dan Insight.</p>
+      <label class="password-field">
+        Password admin
+        <span class="password-input-wrap">
+          <input id="adminPasswordInput" type="password" autocomplete="current-password" placeholder="Masukkan password" required autofocus>
+          <button id="togglePassword" type="button" class="password-toggle" aria-label="Tampilkan password">Lihat</button>
+        </span>
+      </label>
+      <p id="loginError" class="login-error" role="alert"></p>
+      <button id="loginButton" type="submit" class="login-button">Masuk ke Admin</button>
+      <small>Password diverifikasi langsung oleh server dan tidak disimpan permanen.</small>
+    </form>
+  </section>
+
+  <header id="adminTopbar" class="topbar is-hidden">
     <div class="topbar-brand">
       <a href="/" class="admin-logo" aria-label="Kembali ke FA Reader">
         <img src="/assets/fa-reader-logo.png" alt="FA Reader">
@@ -17,10 +40,13 @@
         <h1>Admin Konten</h1>
       </div>
     </div>
-    <div class="topbar-note">Kelola Buku, Knowledge, dan Insight dari satu tempat.</div>
+    <div class="topbar-actions">
+      <div class="topbar-note">Kelola Buku, Knowledge, dan Insight dari satu tempat.</div>
+      <button id="logoutButton" type="button" class="quiet-button">Keluar</button>
+    </div>
   </header>
 
-  <main>
+  <main id="adminMain" class="is-hidden">
     <nav class="content-tabs" aria-label="Jenis konten">
       <button type="button" class="content-tab active" data-content-tab="books">Buku</button>
       <button type="button" class="content-tab" data-content-tab="topics">Knowledge</button>

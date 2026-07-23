@@ -23,6 +23,15 @@ const elements = {
   detail: document.querySelector("#detail"),
   template: document.querySelector("#detailTemplate"),
   bookFilters: document.querySelector("#bookFilters"),
+  loginWall: document.querySelector("#loginWall"),
+  loginForm: document.querySelector("#loginForm"),
+  passwordInput: document.querySelector("#adminPasswordInput"),
+  loginError: document.querySelector("#loginError"),
+  loginButton: document.querySelector("#loginButton"),
+  togglePassword: document.querySelector("#togglePassword"),
+  logoutButton: document.querySelector("#logoutButton"),
+  adminTopbar: document.querySelector("#adminTopbar"),
+  adminMain: document.querySelector("#adminMain"),
 };
 
 const formatNumber = new Intl.NumberFormat("id-ID");
@@ -34,13 +43,52 @@ async function getJson(url, options) {
   const response = await fetch(`${apiBase}${url}`, { ...options, headers });
   const payload = await response.json();
   if (response.status === 401 && payload.code === "ADMIN_PASSWORD_REQUIRED") {
-    const password = prompt("Masukkan password admin");
-    if (!password) throw new Error("Password admin diperlukan.");
-    sessionStorage.setItem("fa-reader-admin-password", password);
-    return getJson(url, options);
+    sessionStorage.removeItem("fa-reader-admin-password");
+    showLoginWall("Sesi berakhir atau password tidak valid.");
   }
   if (!response.ok) throw new Error(payload.error || "Permintaan gagal.");
   return payload;
+}
+
+function showLoginWall(message = "") {
+  elements.loginWall.classList.remove("is-hidden");
+  elements.adminTopbar.classList.add("is-hidden");
+  elements.adminMain.classList.add("is-hidden");
+  elements.loginError.textContent = message;
+  requestAnimationFrame(() => elements.passwordInput.focus());
+}
+
+function showAdmin() {
+  elements.loginWall.classList.add("is-hidden");
+  elements.adminTopbar.classList.remove("is-hidden");
+  elements.adminMain.classList.remove("is-hidden");
+  elements.loginError.textContent = "";
+  elements.passwordInput.value = "";
+}
+
+async function validatePassword(password) {
+  const response = await fetch(`${apiBase}/stats`, {
+    headers: { "X-Admin-Password": password },
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || "Password admin tidak valid.");
+  return payload;
+}
+
+async function bootstrapAdmin() {
+  const storedPassword = sessionStorage.getItem("fa-reader-admin-password");
+  if (!storedPassword) {
+    showLoginWall();
+    return;
+  }
+  try {
+    await validatePassword(storedPassword);
+    showAdmin();
+    await Promise.all([loadStats(), loadBooks()]);
+  } catch {
+    sessionStorage.removeItem("fa-reader-admin-password");
+    showLoginWall("Silakan masuk kembali untuk melanjutkan.");
+  }
 }
 
 function badge(text, type = "") {
@@ -466,4 +514,36 @@ document.querySelectorAll("[data-content-tab]").forEach((button) => {
   });
 });
 
-await Promise.all([loadStats(), loadBooks()]);
+elements.loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const password = elements.passwordInput.value;
+  elements.loginButton.disabled = true;
+  elements.loginButton.textContent = "Memeriksa…";
+  elements.loginError.textContent = "";
+  try {
+    await validatePassword(password);
+    sessionStorage.setItem("fa-reader-admin-password", password);
+    showAdmin();
+    await Promise.all([loadStats(), loadBooks()]);
+  } catch (error) {
+    elements.loginError.textContent = error.message;
+    elements.passwordInput.select();
+  } finally {
+    elements.loginButton.disabled = false;
+    elements.loginButton.textContent = "Masuk ke Admin";
+  }
+});
+
+elements.togglePassword.addEventListener("click", () => {
+  const visible = elements.passwordInput.type === "text";
+  elements.passwordInput.type = visible ? "password" : "text";
+  elements.togglePassword.textContent = visible ? "Lihat" : "Tutup";
+  elements.togglePassword.setAttribute("aria-label", visible ? "Tampilkan password" : "Sembunyikan password");
+});
+
+elements.logoutButton.addEventListener("click", () => {
+  sessionStorage.removeItem("fa-reader-admin-password");
+  showLoginWall("Anda sudah keluar dari panel admin.");
+});
+
+await bootstrapAdmin();
