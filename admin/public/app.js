@@ -1,4 +1,5 @@
 const state = {
+  resource: "books",
   page: 1,
   totalPages: 1,
   selectedSlug: null,
@@ -21,6 +22,7 @@ const elements = {
   next: document.querySelector("#nextPage"),
   detail: document.querySelector("#detail"),
   template: document.querySelector("#detailTemplate"),
+  bookFilters: document.querySelector("#bookFilters"),
 };
 
 const formatNumber = new Intl.NumberFormat("id-ID");
@@ -51,11 +53,11 @@ function badge(text, type = "") {
 async function loadStats() {
   const stats = await getJson("/stats");
   const cards = [
-    ["Total katalog", stats.total],
-    ["Siap direview", stats.ready_for_review],
-    ["Perlu pemeriksaan", stats.needs_review],
-    ["Published", stats.published],
-    ["Ditolak", stats.rejected],
+    ["Total buku", stats.total],
+    ["Knowledge", stats.knowledge],
+    ["Insight", stats.insights],
+    ["Draft Insight", stats.insight_draft],
+    ["Insight Published", stats.insight_published],
   ];
   elements.stats.replaceChildren(...cards.map(([label, value]) => {
     const card = document.createElement("div");
@@ -66,6 +68,7 @@ async function loadStats() {
 }
 
 async function loadBooks() {
+  if (state.resource !== "books") return loadContentItems();
   const params = new URLSearchParams({
     q: elements.search.value,
     status: elements.status.value,
@@ -107,6 +110,33 @@ async function loadBooks() {
   elements.list.replaceChildren(fragment);
 }
 
+async function loadContentItems() {
+  const params = new URLSearchParams({
+    resource: state.resource,
+    q: elements.search.value,
+    page: state.page,
+    pageSize: 25,
+  });
+  const payload = await getJson(`/books?${params}`);
+  state.totalPages = payload.totalPages;
+  const label = state.resource === "topics" ? "knowledge" : "insight";
+  elements.resultCount.textContent = `${formatNumber.format(payload.total)} ${label}`;
+  elements.pageLabel.textContent = `${payload.page} / ${payload.totalPages}`;
+  elements.previous.disabled = payload.page <= 1;
+  elements.next.disabled = payload.page >= payload.totalPages;
+  elements.list.innerHTML = payload.items.map((item) => `
+    <button type="button" class="book-item ${state.selectedSlug === item.id ? "active" : ""}" data-content-id="${escapeHtml(item.id)}">
+      <h3>${escapeHtml(item.title || "Tanpa judul")}</h3>
+      <p>${state.resource === "topics"
+        ? `${(item.points || []).length} poin · ${item.has_note ? "ada detail" : "tanpa detail"}`
+        : escapeHtml(item.thesis || "Tanpa tesis")}</p>
+      <div class="book-meta">${state.resource === "insights" ? `<span class="badge ${item.status === "published" ? "approved" : "warning"}">${escapeHtml(item.status)}</span>` : ""}</div>
+    </button>`).join("");
+  elements.list.querySelectorAll("[data-content-id]").forEach((button) => {
+    button.addEventListener("click", () => selectContent(button.dataset.contentId));
+  });
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -117,10 +147,73 @@ function escapeHtml(value) {
 }
 
 async function selectBook(slug) {
+  if (state.resource !== "books") return selectContent(slug);
   state.selectedSlug = slug;
   await loadBooks();
   const book = await getJson(`/books/${encodeURIComponent(slug)}`);
   renderDetail(book);
+}
+
+async function selectContent(id) {
+  state.selectedSlug = id;
+  await loadContentItems();
+  const item = await getJson(`/books?resource=${state.resource}&id=${encodeURIComponent(id)}`);
+  renderContentDetail(item);
+}
+
+function textLines(value) {
+  return Array.isArray(value) ? value.join("\n") : "";
+}
+
+function renderContentDetail(item) {
+  if (state.resource === "topics") {
+    elements.detail.innerHTML = `
+      <article class="content-editor">
+        <div class="detail-heading"><div><span class="badge approved">Knowledge</span><h2>${escapeHtml(item.title || "Tanpa judul")}</h2></div></div>
+        <label>Judul<input data-field="title" value="${escapeHtml(item.title || "")}"></label>
+        <label>Kategori <small>satu kategori per baris</small><textarea data-field="categories" rows="4">${escapeHtml(textLines(item.categories))}</textarea></label>
+        <label>Poin utama <small>satu poin per baris</small><textarea data-field="points" rows="9">${escapeHtml(textLines(item.points))}</textarea></label>
+        <label>Isi detail<textarea data-field="note_content" rows="18">${escapeHtml(item.note_content || "")}</textarea></label>
+        <div class="save-row"><span data-save-status></span><button type="button" class="primary-button" data-save-content>Simpan Knowledge</button></div>
+      </article>`;
+  } else {
+    const posts = Array.isArray(item.posts) ? item.posts : [];
+    elements.detail.innerHTML = `
+      <article class="content-editor">
+        <div class="detail-heading"><div><span class="badge ${item.status === "published" ? "approved" : "warning"}">${escapeHtml(item.status)}</span><h2>${escapeHtml(item.title || "Tanpa judul")}</h2></div></div>
+        <div class="edit-grid compact-edit-grid">
+          <label>Judul<input data-field="title" value="${escapeHtml(item.title || "")}"></label>
+          <label>Status<select data-field="status"><option value="draft" ${item.status === "draft" ? "selected" : ""}>Draft</option><option value="published" ${item.status === "published" ? "selected" : ""}>Published</option></select></label>
+        </div>
+        <label>Tesis<textarea data-field="thesis" rows="3">${escapeHtml(item.thesis || "")}</textarea></label>
+        <label>Jenis konten <small>satu jenis per baris</small><textarea data-field="content_types" rows="3">${escapeHtml(textLines(item.content_types))}</textarea></label>
+        <section class="post-editors"><h3>Isi Insight</h3>${posts.map((post, index) => `<label>Bagian ${index + 1}<textarea data-post-index="${index}" rows="7">${escapeHtml(post.text || "")}</textarea></label>`).join("")}</section>
+        <div class="save-row"><span data-save-status></span><button type="button" class="primary-button" data-save-content>Simpan Insight</button></div>
+      </article>`;
+  }
+  elements.detail.querySelector("[data-save-content]").addEventListener("click", saveContentDetail);
+}
+
+async function saveContentDetail() {
+  const status = elements.detail.querySelector("[data-save-status]");
+  const value = (name) => elements.detail.querySelector(`[data-field="${name}"]`)?.value || "";
+  status.textContent = "Menyimpan…";
+  try {
+    const payload = state.resource === "topics" ? {
+      title: value("title"), categories: value("categories").split("\n"),
+      points: value("points").split("\n"), note_content: value("note_content"),
+    } : {
+      title: value("title"), status: value("status"), thesis: value("thesis"),
+      content_types: value("content_types").split("\n"),
+      posts: Array.from(elements.detail.querySelectorAll("[data-post-index]")).map((field) => ({ text: field.value })),
+    };
+    const updated = await getJson(`/books?resource=${state.resource}&id=${encodeURIComponent(state.selectedSlug)}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    status.textContent = "Tersimpan";
+    await Promise.all([loadStats(), loadContentItems()]);
+    renderContentDetail(updated);
+  } catch (error) { status.textContent = error.message; }
 }
 
 function renderDetail(book) {
@@ -357,6 +450,20 @@ elements.previous.addEventListener("click", () => {
 elements.next.addEventListener("click", () => {
   state.page = Math.min(state.totalPages, state.page + 1);
   loadBooks();
+});
+
+document.querySelectorAll("[data-content-tab]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    state.resource = button.dataset.contentTab;
+    state.page = 1;
+    state.selectedSlug = null;
+    document.querySelectorAll("[data-content-tab]").forEach((item) => item.classList.toggle("active", item === button));
+    elements.bookFilters.classList.toggle("is-hidden", state.resource !== "books");
+    elements.search.placeholder = state.resource === "books" ? "Judul atau penulis"
+      : state.resource === "topics" ? "Cari knowledge" : "Cari insight";
+    elements.detail.innerHTML = `<div class="empty-state"><span class="empty-icon">⌁</span><h2>Pilih ${state.resource === "topics" ? "knowledge" : state.resource === "insights" ? "insight" : "buku"}</h2><p>Detail dan editor konten akan tampil di sini.</p></div>`;
+    await loadBooks();
+  });
 });
 
 await Promise.all([loadStats(), loadBooks()]);

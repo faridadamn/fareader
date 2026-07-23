@@ -134,7 +134,7 @@ async function refreshBookStats(tx, bookId) {
 
 export async function loadStats() {
   const sql = getSql();
-  const [row] = await sql`
+  const [books, knowledge, insights] = await Promise.all([sql`
     SELECT
       count(*)::int AS total,
       count(*) FILTER (WHERE status = 'ready_for_review')::int
@@ -144,8 +144,100 @@ export async function loadStats() {
       count(*) FILTER (WHERE status = 'rejected')::int AS rejected,
       count(*) FILTER (WHERE rights_verified)::int AS rights_verified
     FROM books
-  `;
-  return row;
+  `, sql`SELECT count(*)::int AS total FROM topics`, sql`
+    SELECT count(*)::int AS total,
+      count(*) FILTER (WHERE status = 'draft')::int AS draft,
+      count(*) FILTER (WHERE status = 'published')::int AS insight_published
+    FROM content_drafts
+  `]);
+  return { ...books[0], knowledge: knowledge[0].total, insights: insights[0].total,
+    insight_draft: insights[0].draft, insight_published: insights[0].insight_published };
+}
+
+export async function loadAdminContent(url, resource) {
+  const sql = getSql();
+  const query = (url.searchParams.get("q") || "").trim();
+  const id = (url.searchParams.get("id") || "").trim();
+  const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+  const pageSize = Math.min(100, Math.max(10, Number(url.searchParams.get("pageSize") || 25)));
+  const offset = (page - 1) * pageSize;
+  const pattern = `%${query}%`;
+  if (resource === "topics") {
+    if (id) {
+      const [item] = await sql`
+        SELECT t.id, t.title, t.categories, t.points, t.created_at,
+          n.content AS note_content, n.updated_at AS note_updated_at
+        FROM topics t LEFT JOIN notes n ON n.topic_id = t.id
+        WHERE t.id = ${id} LIMIT 1`;
+      return item || null;
+    }
+    const filter = query ? sql`(coalesce(t.title,'') ILIKE ${pattern} OR coalesce(t.categories::text,'') ILIKE ${pattern})` : sql`true`;
+    const [count, items] = await Promise.all([
+      sql`SELECT count(*)::int AS total FROM topics t WHERE ${filter}`,
+      sql`SELECT t.id, t.title, t.categories, t.points, t.created_at,
+        EXISTS(SELECT 1 FROM notes n WHERE n.topic_id=t.id) AS has_note
+        FROM topics t WHERE ${filter} ORDER BY t.created_at DESC NULLS LAST, t.title
+        LIMIT ${pageSize} OFFSET ${offset}`,
+    ]);
+    return { items, page, pageSize, total: count[0].total, totalPages: Math.max(1, Math.ceil(count[0].total / pageSize)) };
+  }
+  if (resource === "insights") {
+    if (id) {
+      const [item] = await sql`SELECT id, title, thesis, content_types, format, posts,
+        content_markdown, attribution, status, published_url, published_at, created_at, updated_at
+        FROM content_drafts WHERE id = ${id} LIMIT 1`;
+      return item || null;
+    }
+    const filter = query ? sql`(coalesce(d.title,'') ILIKE ${pattern} OR coalesce(d.thesis,'') ILIKE ${pattern})` : sql`true`;
+    const [count, items] = await Promise.all([
+      sql`SELECT count(*)::int AS total FROM content_drafts d WHERE ${filter}`,
+      sql`SELECT d.id, d.title, d.thesis, d.content_types, d.format, d.status, d.created_at
+        FROM content_drafts d WHERE ${filter} ORDER BY d.created_at DESC NULLS LAST
+        LIMIT ${pageSize} OFFSET ${offset}`,
+    ]);
+    return { items, page, pageSize, total: count[0].total, totalPages: Math.max(1, Math.ceil(count[0].total / pageSize)) };
+  }
+  throw Object.assign(new Error("Jenis konten tidak didukung."), { statusCode: 400 });
+}
+
+function cleanStringArray(value, maxItems = 30, maxLength = 300) {
+  const source = Array.isArray(value) ? value : String(value || "").split("\n");
+  return source.map((item) => cleanText(item, maxLength)).filter(Boolean).slice(0, maxItems);
+}
+
+export async function updateAdminContent(resource, id, payload) {
+  const sql = getSql();
+  if (resource === "topics") {
+    const title = cleanText(payload.title, 500);
+    if (!title) throw Object.assign(new Error("Judul knowledge wajib diisi."), { statusCode: 400 });
+    const categories = cleanStringArray(payload.categories, 20, 100);
+    const points = cleanStringArray(payload.points, 50, 1000);
+    const note = cleanText(payload.note_content, 200000);
+    await sql.begin(async (tx) => {
+      const updated = await tx`UPDATE topics SET title=${title}, categories=${tx.json(categories)},
+        points=${tx.json(points)} WHERE id=${id} RETURNING id`;
+      if (!updated.length) throw Object.assign(new Error("Knowledge tidak ditemukan."), { statusCode: 404 });
+      if (note) await tx`INSERT INTO notes(topic_id, content, updated_at, version) VALUES(${id},${note},now(),1)
+        ON CONFLICT(topic_id) DO UPDATE SET content=excluded.content, updated_at=now(), version=notes.version+1`;
+      else await tx`DELETE FROM notes WHERE topic_id=${id}`;
+    });
+    return loadAdminContent(new URL(`https://local/?id=${encodeURIComponent(id)}`), resource);
+  }
+  if (resource === "insights") {
+    const title = cleanText(payload.title, 500);
+    if (!title) throw Object.assign(new Error("Judul insight wajib diisi."), { statusCode: 400 });
+    const status = ["draft", "published"].includes(payload.status) ? payload.status : "draft";
+    const thesis = cleanText(payload.thesis, 5000);
+    const contentTypes = cleanStringArray(payload.content_types, 20, 100);
+    const posts = Array.isArray(payload.posts) ? payload.posts.map((post, index) => ({ number: index + 1, text: cleanText(post.text, 20000) })).filter((post) => post.text) : [];
+    const [item] = await sql`UPDATE content_drafts SET title=${title}, thesis=${thesis},
+      content_types=${contentTypes}, posts=${sql.json(posts)}, status=${status},
+      published_at=CASE WHEN ${status}='published' THEN coalesce(published_at,now()) ELSE null END,
+      updated_at=now() WHERE id=${id} RETURNING id`;
+    if (!item) throw Object.assign(new Error("Insight tidak ditemukan."), { statusCode: 404 });
+    return loadAdminContent(new URL(`https://local/?id=${encodeURIComponent(id)}`), resource);
+  }
+  throw Object.assign(new Error("Jenis konten tidak didukung."), { statusCode: 400 });
 }
 
 export async function loadBooks(url) {

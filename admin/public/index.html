@@ -3,19 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Review Konten — Ebook Summary Reader</title>
+  <title>Admin Konten — FA Reader</title>
   <link rel="stylesheet" href="/admin/styles.css">
 </head>
 <body>
   <header class="topbar">
     <div>
-      <p class="eyebrow">Ebook Summary Reader</p>
-      <h1>Review Konten</h1>
+      <p class="eyebrow">FA Reader</p>
+      <h1>Admin Konten</h1>
     </div>
-    <div class="topbar-note">Data review tersimpan ke Supabase dan tidak mengubah JSON sumber.</div>
+    <div class="topbar-note">Kelola Buku, Knowledge, dan Insight dari satu tempat.</div>
   </header>
 
   <main>
+    <nav class="content-tabs" aria-label="Jenis konten">
+      <button type="button" class="content-tab active" data-content-tab="books">Buku</button>
+      <button type="button" class="content-tab" data-content-tab="topics">Knowledge</button>
+      <button type="button" class="content-tab" data-content-tab="insights">Insight</button>
+    </nav>
     <section class="stats" id="stats" aria-label="Ringkasan katalog"></section>
 
     <section class="workspace">
@@ -25,7 +30,7 @@
             Cari
             <input id="searchInput" type="search" placeholder="Judul atau penulis">
           </label>
-          <div class="filter-row">
+          <div class="filter-row" id="bookFilters">
             <label>
               Quality
               <select id="statusFilter">
