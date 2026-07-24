@@ -88,8 +88,8 @@ a {
   height: 54px;
   overflow: hidden;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 16px 40px rgba(7, 27, 77, 0.16);
+  background: transparent;
+  box-shadow: none;
 }
 
 .brand-logo {
