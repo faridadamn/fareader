@@ -228,7 +228,10 @@ a {
 }
 
 .mobile-brand {
-  display: none;
+  display: inline-flex;
+  width: 150px;
+  height: 48px;
+  border-radius: 15px;
 }
 
 .search-box {
