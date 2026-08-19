@@ -988,6 +988,7 @@ function renderReader(book) {
           <div class="reader-toolbar">
             ${progressRing(percent, "reader-progress-ring")}
             <button type="button" class="reader-action icon-action highlight-action" data-create-highlight aria-label="Highlight teks" title="Highlight teks"></button>
+            <button type="button" class="reader-action icon-action share-action" data-share-book aria-label="Bagikan buku" title="Bagikan buku"></button>
             <button type="button" class="reader-action icon-action bookmark-button ${saved ? "saved" : ""}" data-reader-bookmark="${escapeHtml(book.slug)}" aria-label="${saved ? "Hapus bookmark" : "Simpan bookmark"}" title="${saved ? "Hapus bookmark" : "Simpan bookmark"}">
             </button>
           </div>
@@ -1010,6 +1011,9 @@ function renderReader(book) {
   });
   elements.reader.querySelector("[data-reader-bookmark]")?.addEventListener("click", () => {
     toggleBookmark(book.slug);
+  });
+  elements.reader.querySelector("[data-share-book]")?.addEventListener("click", () => {
+    shareBook(book);
   });
   elements.reader.querySelector("[data-create-highlight]")?.addEventListener("click", () => {
     createHighlightFromSelection(book);
@@ -1034,6 +1038,59 @@ function setReaderSection(book, index) {
   renderBookLists();
   renderContinuePanel();
   renderHome();
+  syncReaderUrl(book, nextIndex);
+}
+
+function syncReaderUrl(book, sectionIndex = null) {
+  if (IS_NATIVE_APP) return;
+  const index = sectionIndex ?? activeSectionIndex(book);
+  const path = index > 0 ? `/b/${encodeURIComponent(book.slug)}/${index}` : `/b/${encodeURIComponent(book.slug)}`;
+  history.replaceState(null, "", path);
+}
+
+function shareUrlFor(book, sectionIndex = null) {
+  const index = sectionIndex ?? activeSectionIndex(book);
+  const base = (CONFIGURED_API_BASE || "https://fareader.vercel.app/").replace(/\/$/, "");
+  return index > 0
+    ? `${base}/b/${encodeURIComponent(book.slug)}/${index}`
+    : `${base}/b/${encodeURIComponent(book.slug)}`;
+}
+
+async function shareBook(book) {
+  const url = shareUrlFor(book);
+  const title = book.title || "FA Reader";
+  const text = `${title} — baca rangkumannya di FA Reader`;
+  const shareData = { title, text, url };
+  try {
+    if (navigator.share) {
+      await navigator.share(shareData);
+      return;
+    }
+    throw new Error("share-api-unavailable");
+  } catch (error) {
+    if (error && error.name === "AbortError") return; // user membatalkan
+    try {
+      await navigator.clipboard.writeText(url);
+      showShareToast("Link disalin");
+    } catch {
+      window.prompt("Salin link ini:", url);
+    }
+  }
+}
+
+function showShareToast(message) {
+  let toast = document.querySelector(".share-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.className = "share-toast";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add("is-visible");
+  clearTimeout(showShareToast._timer);
+  showShareToast._timer = setTimeout(() => {
+    toast.classList.remove("is-visible");
+  }, 2200);
 }
 
 function updateReaderProgressUI(book, sectionIndex) {
@@ -1221,6 +1278,21 @@ document.querySelectorAll("[data-saved-tab]").forEach((button) => {
   button.addEventListener("click", () => setSavedTab(button.dataset.savedTab));
 });
 
+function parseDeepLink() {
+  const match = window.location.pathname.match(/^\/b\/([^/]+)(?:\/(\d+))?$/);
+  if (match) {
+    return {
+      book: decodeURIComponent(match[1]),
+      section: match[2] ? Number(match[2]) : 0,
+    };
+  }
+  const query = new URLSearchParams(window.location.search);
+  return {
+    book: query.get("book"),
+    section: Number(query.get("s") || 0),
+  };
+}
+
 try {
   applyFontScale();
   await loadMeta();
@@ -1229,6 +1301,13 @@ try {
   await loadInsights();
   setupInfiniteScroll();
   updateStats();
+  const deep = parseDeepLink();
+  if (deep.book) {
+    await selectBook(deep.book);
+    if (deep.section > 0 && state.currentBook && deep.section < state.currentBook.sections.length) {
+      setReaderSection(state.currentBook, deep.section);
+    }
+  }
 } catch (error) {
   elements.reader.innerHTML = `
     <div class="empty-state">

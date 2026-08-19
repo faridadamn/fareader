@@ -8,6 +8,16 @@
       "permanent": false
     }
   ],
+  "rewrites": [
+    {
+      "source": "/b/:slug",
+      "destination": "/?book=:slug"
+    },
+    {
+      "source": "/b/:slug/:section",
+      "destination": "/?book=:slug&s=:section"
+    }
+  ],
   "functions": {
     "api/**/*.js": {
       "maxDuration": 10
