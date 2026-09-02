@@ -38,6 +38,9 @@ const state = {
   fontScale: readStorage(STORAGE_KEYS.fontScale, 1),
   readerScrollCleanup: null,
   searchTimer: null,
+  lastNavScrollY: 0,
+  navScrollTicking: false,
+  navHidden: false,
   sessionId: getOrCreateSessionId(),
   completedEvents: new Set(readStorage(STORAGE_KEYS.completedEvents, [])),
   completionPending: new Set(),
@@ -1328,6 +1331,40 @@ document.addEventListener("keydown", (event) => {
 document.querySelectorAll("[data-saved-tab]").forEach((button) => {
   button.addEventListener("click", () => setSavedTab(button.dataset.savedTab));
 });
+
+// Bottom-nav auto hide/show on scroll (mobile)
+function updateNavOnScroll() {
+  state.navScrollTicking = false;
+  const nav = document.querySelector(".bottom-nav");
+  if (!nav) return;
+  const y = window.scrollY;
+  if (y <= 8) {
+    // Di paling atas — selalu tampil
+    setNavHidden(false);
+  } else {
+    const delta = y - state.lastNavScrollY;
+    if (delta > 4) {
+      setNavHidden(true);
+    } else if (delta < -4) {
+      setNavHidden(false);
+    }
+  }
+  state.lastNavScrollY = y;
+}
+
+function setNavHidden(hidden) {
+  if (state.navHidden === hidden) return;
+  state.navHidden = hidden;
+  const nav = document.querySelector(".bottom-nav");
+  if (nav) nav.classList.toggle("nav-hidden", hidden);
+}
+
+window.addEventListener("scroll", () => {
+  if (state.navScrollTicking) return;
+  state.navScrollTicking = true;
+  requestAnimationFrame(updateNavOnScroll);
+}, { passive: true });
+updateNavOnScroll();
 
 function parseDeepLink() {
   const match = window.location.pathname.match(/^\/b\/([^/]+)(?:\/(\d+))?$/);
