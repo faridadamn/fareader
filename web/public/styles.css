@@ -1390,7 +1390,69 @@ select {
   padding-top: 4px;
 }
 .knowledge-card-actions .primary-button { width: auto; }
-.knowledge-back-button { margin-bottom: 18px; }
+.floating-back-button {
+  position: fixed;
+  left: 18px;
+  bottom: calc(20px + var(--safe-bottom));
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid rgba(220, 232, 238, 0.92);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 38px rgba(7, 27, 77, 0.18);
+  backdrop-filter: blur(16px);
+  color: var(--navy-950);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+.floating-back-button:hover {
+  transform: translateY(-2px);
+  background: var(--teal-50);
+  color: var(--teal-700);
+  box-shadow: 0 18px 44px rgba(7, 27, 77, 0.22);
+}
+.floating-back-button:active {
+  transform: translateY(0);
+}
+.detail-next {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 760px;
+  margin: 28px auto 0;
+  padding: 15px 18px;
+  border: 0;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--teal-700), var(--teal-600));
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+.detail-next:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px rgba(0, 153, 168, 0.32);
+  filter: brightness(1.04);
+}
+.detail-next:active {
+  transform: translateY(0);
+}
+.detail-next[disabled] {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+  filter: none;
+}
 .knowledge-detail-shell {
   width: min(920px, 100%);
   margin: 0 auto;
@@ -1599,6 +1661,14 @@ select {
     gap: 7px;
     padding: 8px;
     border-radius: 20px;
+  }
+
+  .floating-back-button {
+    left: 14px;
+    bottom: calc(88px + var(--safe-bottom));
+    width: 42px;
+    height: 42px;
+    font-size: 18px;
   }
 
   .reader-toolbar .reader-action {

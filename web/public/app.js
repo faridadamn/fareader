@@ -64,6 +64,7 @@ const elements = {
   knowledgeSentinel: document.querySelector("#knowledgeSentinel"),
   knowledgeDetail: document.querySelector("#knowledgeDetail"),
   knowledgeBackButton: document.querySelector("#knowledgeBackButton"),
+  readerBackButton: document.querySelector("#readerBackButton"),
   reader: document.querySelector("#reader"),
   continuePanel: document.querySelector("#continuePanel"),
   homeShelves: document.querySelector("#homeShelves"),
@@ -676,10 +677,25 @@ async function openInsightDetail(insightId) {
       : `<p>${markdownToHtml(insight.content_markdown)}</p>`;
     elements.insightDetail.innerHTML = `
       <header class="knowledge-detail-header"><div class="tag-row">${insight.status === "draft" ? tag("Draft", "draft-tag") : ""}</div><p class="eyebrow">Insight</p><h1>${escapeHtml(insight.title)}</h1></header>
-      <div class="reader-body"><div class="reader-content knowledge-detail-content insight-content">${postContent}</div></div>`;
+      <div class="reader-body"><div class="reader-content knowledge-detail-content insight-content">${postContent}</div></div>
+      ${nextInsightButton(insightId)}`;
+    wireNextInsight(elements.insightDetail);
   } catch (error) {
     elements.insightDetail.innerHTML = `<div class="empty-state"><h2>Insight gagal dimuat</h2><p>${escapeHtml(error.message)}</p></div>`;
   }
+}
+
+function nextInsightButton(insightId) {
+  const idx = state.insightItems.findIndex((item) => item.id === insightId);
+  const nextItem = idx >= 0 ? state.insightItems[idx + 1] : null;
+  if (!nextItem) return "";
+  return `<button type="button" class="detail-next" data-next-insight="${escapeHtml(nextItem.id)}">Next: ${escapeHtml(nextItem.title || "Tanpa judul")} →</button>`;
+}
+
+function wireNextInsight(root) {
+  root.querySelector("[data-next-insight]")?.addEventListener("click", (event) => {
+    openInsightDetail(event.currentTarget.dataset.nextInsight);
+  });
 }
 
 function renderKnowledge() {
@@ -737,7 +753,9 @@ async function openKnowledgeDetail(topicId) {
       <div class="reader-body">
         <div class="reader-content knowledge-detail-content">${sanitizeBookHtml(topic.content)}</div>
       </div>
+      ${nextKnowledgeButton(topicId)}
     `;
+    wireNextKnowledge(elements.knowledgeDetail);
   } catch (error) {
     elements.knowledgeDetail.innerHTML = `
       <div class="empty-state">
@@ -747,6 +765,19 @@ async function openKnowledgeDetail(topicId) {
       </div>
     `;
   }
+}
+
+function nextKnowledgeButton(topicId) {
+  const idx = state.knowledgeItems.findIndex((item) => item.id === topicId);
+  const nextItem = idx >= 0 ? state.knowledgeItems[idx + 1] : null;
+  if (!nextItem) return "";
+  return `<button type="button" class="detail-next" data-next-topic="${escapeHtml(nextItem.id)}">Next: ${escapeHtml(nextItem.title || "Tanpa judul")} →</button>`;
+}
+
+function wireNextKnowledge(root) {
+  root.querySelector("[data-next-topic]")?.addEventListener("click", (event) => {
+    openKnowledgeDetail(event.currentTarget.dataset.nextTopic);
+  });
 }
 
 function coverContent(book) {
@@ -1002,6 +1033,7 @@ function renderReader(book) {
             </section>
           `).join("")}
         </div>
+        ${nextBookButton(book.slug)}
       </article>
     </div>
   `;
@@ -1021,11 +1053,25 @@ function renderReader(book) {
   elements.reader.querySelectorAll("[data-font-scale]").forEach((button) => {
     button.addEventListener("click", () => changeFontScale(Number(button.dataset.fontScale)));
   });
+  wireNextBook(elements.reader);
   applyFontScale();
   setupReaderScrollTracking(book);
   requestAnimationFrame(() => {
     const target = elements.reader.querySelector(`[data-reader-section="${index}"]`);
     if (target) target.scrollIntoView({ block: "start" });
+  });
+}
+
+function nextBookButton(slug) {
+  const idx = state.libraryItems.findIndex((item) => item.slug === slug);
+  const nextItem = idx >= 0 ? state.libraryItems[idx + 1] : null;
+  if (!nextItem) return "";
+  return `<button type="button" class="detail-next" data-next-book="${escapeHtml(nextItem.slug)}">Next: ${escapeHtml(nextItem.title || "Tanpa judul")} →</button>`;
+}
+
+function wireNextBook(root) {
+  root.querySelector("[data-next-book]")?.addEventListener("click", (event) => {
+    selectBook(event.currentTarget.dataset.nextBook);
   });
 }
 
@@ -1243,6 +1289,11 @@ elements.knowledgeBackButton?.addEventListener("click", () => {
 
 elements.insightBackButton?.addEventListener("click", () => {
   setView("insight");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+elements.readerBackButton?.addEventListener("click", () => {
+  setView("books");
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
 
