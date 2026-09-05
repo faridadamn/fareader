@@ -8,6 +8,10 @@ import {
 } from "../../_admin-data.js";
 import { generateDraft, DEFAULT_MODEL } from "../../_admin-ai.js";
 
+export const config = {
+  maxDuration: 60,
+};
+
 export default async function handler(request, response) {
   if (handleOptions(request, response)) return;
   if (!requireAdmin(request, response)) return;
