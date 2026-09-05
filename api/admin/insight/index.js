@@ -6,7 +6,7 @@ import {
   requireAdmin,
   sendError,
   sendJson,
-} from "../_admin-data.js";
+} from "../../_admin-data.js";
 
 const AI_SOURCE_KEY = "manual_ai_draft_workspace";
 const AI_SOURCE_TITLE = "AI Draft Workspace (buatan admin via editor)";
