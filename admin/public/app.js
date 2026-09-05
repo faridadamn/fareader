@@ -570,7 +570,7 @@ function addAiDraftButton(container, item) {
 
 async function fetchAiModels() {
   try {
-    const payload = await getJson("/insight?action=models");
+    const payload = await getJson("/books?resource=insights&action=models");
     AI_STATE.models = (payload?.data || []).map((m) => m.id).filter(Boolean);
   } catch {
     AI_STATE.models = [AI_DEFAULT_MODEL];
@@ -689,7 +689,7 @@ async function generateAiDraft() {
   btn.disabled = true;
   status.textContent = "AI menyusun draft… (bisa 20-60 detik)";
   try {
-    const payload = await getJson("/insight?action=generate", {
+    const payload = await getJson("/books?resource=insights&action=generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -716,7 +716,7 @@ async function generateAiDraft() {
 
 async function createInsightDraft(draft) {
   // simpan sebagai draft baru lewat POST /api/admin/insight
-  const payload = await getJson("/insight", {
+  const payload = await getJson("/books?resource=insights", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

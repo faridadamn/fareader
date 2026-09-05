@@ -1,19 +1,13 @@
-// /api/admin/insight — gabungan: create draft, generate draft AI, daftar model AI.
-// Satu function (bukan 3) karena Vercel Hobby plan batasi 12 serverless functions.
-import {
-  getSql,
-  handleOptions,
-  readJsonBody,
-  requireAdmin,
-  sendError,
-  sendJson,
-} from "../_admin-data.js";
-import { generateDraft, DEFAULT_MODEL } from "../_admin-ai.js";
+// Helper insight AI — create draft, generate draft AI, daftar model.
+// Bukan serverless function (diawali _) — di-dispatch dari api/admin/books/index.js
+// biar jumlah function Vercel tetap di bawah limit 12.
+import { getSql } from "./_admin-data.js";
+import { generateDraft, DEFAULT_MODEL } from "./_admin-ai.js";
 
 const AI_PROXY_URL = process.env.AI_PROXY_URL || "https://faridadamn.my.id/fareader-ai/v1";
 const AI_PROXY_TOKEN = process.env.AI_PROXY_TOKEN || "";
 
-// ---------- helpers create ----------
+// ---------- create ----------
 const AI_SOURCE_KEY = "manual_ai_draft_workspace";
 const AI_SOURCE_TITLE = "AI Draft Workspace (buatan admin via editor)";
 
@@ -49,7 +43,7 @@ function cleanText(value, max = 100000) {
   return String(value ?? "").trim().slice(0, max);
 }
 
-async function handleCreate(body) {
+export async function handleCreate(body) {
   const title = cleanText(body.title, 500);
   if (!title) throw Object.assign(new Error("Judul insight wajib diisi."), { statusCode: 400 });
   const thesis = cleanText(body.thesis, 5000);
@@ -85,7 +79,7 @@ async function handleCreate(body) {
 }
 
 // ---------- generate AI ----------
-async function handleGenerate(body) {
+export async function handleGenerate(body) {
   const draft = await generateDraft({
     model: body?.model || DEFAULT_MODEL,
     brief: body?.brief || "",
@@ -96,7 +90,7 @@ async function handleGenerate(body) {
 }
 
 // ---------- models ----------
-async function handleModels() {
+export async function handleModels() {
   if (!AI_PROXY_TOKEN) {
     throw Object.assign(new Error("AI_PROXY_TOKEN belum dikonfigurasi."), { statusCode: 503 });
   }
@@ -110,33 +104,4 @@ async function handleModels() {
     throw Object.assign(new Error(data?.error?.message || data?.error || "Gagal ambil daftar model."), { statusCode: upstream.status });
   }
   return { data: (data?.data || []).map((m) => ({ id: m.id, name: m.id })) };
-}
-
-export default async function handler(request, response) {
-  if (handleOptions(request, response)) return;
-  if (!requireAdmin(request, response)) return;
-  try {
-    const url = new URL(request.url, `https://${request.headers.host || "localhost"}`);
-    const action = String(url.searchParams.get("action") || "").trim();
-
-    // GET ?action=models → daftar model AI
-    if (request.method === "GET") {
-      if (action !== "models") return sendJson(request, response, 405, { error: "Method not allowed" });
-      return sendJson(request, response, 200, await handleModels());
-    }
-
-    if (request.method !== "POST") {
-      return sendJson(request, response, 405, { error: "Method not allowed" });
-    }
-    const body = await readJsonBody(request);
-
-    // POST ?action=generate → draft AI ; POST biasa → create
-    if (action === "generate") {
-      return sendJson(request, response, 200, await handleGenerate(body));
-    }
-    const item = await handleCreate(body);
-    return sendJson(request, response, 201, item);
-  } catch (error) {
-    return sendError(request, response, error);
-  }
 }
