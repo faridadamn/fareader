@@ -5,6 +5,7 @@ const state = {
   selectedSlug: null,
   selectedDecision: "pending",
   searchTimer: null,
+  aiGenerated: false,
 };
 
 const apiBase = window.FA_ADMIN_API_BASE
@@ -204,6 +205,7 @@ async function selectBook(slug) {
 
 async function selectContent(id) {
   state.selectedSlug = id;
+  state.aiGenerated = false;
   await loadContentItems();
   const item = await getJson(`/books?resource=${state.resource}&id=${encodeURIComponent(id)}`);
   renderContentDetail(item);
@@ -226,9 +228,16 @@ function renderContentDetail(item) {
       </article>`;
   } else {
     const posts = Array.isArray(item.posts) ? item.posts : [];
+    const aiBadge = state.aiGenerated
+      ? `<span class="ai-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.4"/></svg> AI Generated</span>`
+      : "";
     elements.detail.innerHTML = `
       <article class="content-editor">
-        <div class="detail-heading"><div><span class="badge ${item.status === "published" ? "approved" : "warning"}">${escapeHtml(item.status)}</span><h2>${escapeHtml(item.title || "Tanpa judul")}</h2></div></div>
+        <div class="detail-heading"><div><span class="badge ${item.status === "published" ? "approved" : "warning"}">${escapeHtml(item.status)}</span>${aiBadge}<h2>${escapeHtml(item.title || "Tanpa judul")}</h2></div></div>
+        <button type="button" class="ai-trigger" data-ai-open>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.4"/></svg>
+          <span>Buat draft insight dengan AI</span>
+        </button>
         <div class="edit-grid compact-edit-grid">
           <label>Judul<input data-field="title" value="${escapeHtml(item.title || "")}"></label>
           <label>Status<select data-field="status"><option value="draft" ${item.status === "draft" ? "selected" : ""}>Draft</option><option value="published" ${item.status === "published" ? "selected" : ""}>Published</option></select></label>
@@ -240,6 +249,7 @@ function renderContentDetail(item) {
       </article>`;
   }
   elements.detail.querySelector("[data-save-content]").addEventListener("click", saveContentDetail);
+  elements.detail.querySelector("[data-ai-open]")?.addEventListener("click", () => openAiDraftModal());
 }
 
 async function saveContentDetail() {
@@ -551,22 +561,11 @@ const AI_STATE = {
   sourceTab: "book",
   books: [],
   topics: [],
-  selectedRefs: [], // {type:'book'|'topic', id, label}
+  selectedRefs: [], // {type:'book'|'topic', id, label, meta}
   models: [],
 };
 
 const AI_DEFAULT_MODEL = "cmc/deepseek/deepseek-v4-flash";
-
-// Tombol Draft AI di editor insight (dipanggil dari renderContentDetail)
-function addAiDraftButton(container, item) {
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "primary-button ai-draft-trigger";
-  btn.style.cssText = "margin: 4px 0 12px; width:100%; background:#7c3aed;";
-  btn.innerHTML = "✨ Draft dengan AI";
-  btn.addEventListener("click", () => openAiDraftModal());
-  container.appendChild(btn);
-}
 
 async function fetchAiModels() {
   try {
@@ -582,7 +581,6 @@ async function fetchAiModels() {
 }
 
 async function openAiDraftModal() {
-  // render modal
   const tpl = document.getElementById("aiDraftModalTemplate");
   const existing = document.querySelector(".ai-modal-backdrop");
   if (existing) existing.remove();
@@ -606,7 +604,7 @@ async function openAiDraftModal() {
 
   await Promise.all([fetchAiRefs("book"), fetchAiRefs("topic"), fetchAiModels()]);
   renderAiRefList("");
-  renderAiSelected();
+  renderAiSelectionBar();
 
   const search = document.getElementById("aiRefSearch");
   search.addEventListener("input", () => renderAiRefList(search.value));
@@ -619,8 +617,21 @@ async function fetchAiRefs(type) {
     const resource = type === "book" ? "books" : "topics";
     const params = new URLSearchParams({ resource, pageSize: 50 });
     const payload = await getJson(`/books?${params}`);
-    if (type === "book") AI_STATE.books = (payload?.items || []).map((b) => ({ type: "book", id: b.slug, label: b.title || b.slug }));
-    else AI_STATE.topics = (payload?.items || []).map((t) => ({ type: "topic", id: t.id, label: t.title || t.id }));
+    if (type === "book") {
+      AI_STATE.books = (payload?.items || []).map((b) => {
+        const meta = [
+          b.original_author ? b.original_author : null,
+          b.section_count ? `${b.section_count} bagian` : null,
+          b.word_count ? `${formatNumber.format(b.word_count)} kata` : null,
+        ].filter(Boolean).join(" · ");
+        return { type: "book", id: b.slug, label: b.title || b.slug, meta };
+      });
+    } else {
+      AI_STATE.topics = (payload?.items || []).map((t) => {
+        const pointCount = Array.isArray(t.points) ? t.points.length : 0;
+        return { type: "topic", id: t.id, label: t.title || t.id, meta: pointCount ? `${pointCount} poin` : "" };
+      });
+    }
   } catch (error) {
     console.warn("fetch refs", type, error);
   }
@@ -633,61 +644,98 @@ function renderAiRefList(query) {
   const q = (query || "").toLowerCase();
   const filtered = pool.filter((r) => !q || (r.label || "").toLowerCase().includes(q)).slice(0, 40);
   if (!filtered.length) {
-    list.innerHTML = `<div style="padding:12px;color:#64748b;font-size:13px">Tidak ada data. Coba kata lain atau pindah tab.</div>`;
+    list.innerHTML = `<div class="ai-empty">Tidak ada data. Coba kata lain atau pindah tab.</div>`;
     return;
   }
   list.innerHTML = filtered.map((r) => {
-    const checked = AI_STATE.selectedRefs.some((s) => s.type === r.type && s.id === r.id);
-    return `<label class="ai-ref-item">
-      <input type="checkbox" data-ref-type="${r.type}" data-ref-id="${escapeHtml(r.id)}" ${checked ? "checked" : ""}>
-      <span>${escapeHtml(r.label)}</span>
-    </label>`;
+    const selected = AI_STATE.selectedRefs.some((s) => s.type === r.type && s.id === r.id);
+    return `
+      <div class="ai-ref-card ${selected ? "selected" : ""}" data-ref-type="${r.type}" data-ref-id="${escapeHtml(r.id)}" role="button" tabindex="0" aria-pressed="${selected}">
+        <span class="ai-ref-check">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 13 4 4L19 7"/></svg>
+        </span>
+        <span class="ai-ref-card-info">
+          <span class="ai-ref-card-title">${escapeHtml(r.label)}</span>
+          ${r.meta ? `<span class="ai-ref-card-meta">${escapeHtml(r.meta)}</span>` : ""}
+        </span>
+      </div>`;
   }).join("");
-  list.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-    cb.addEventListener("change", () => {
-      const type = cb.dataset.refType;
-      const id = cb.dataset.refId;
+
+  list.querySelectorAll(".ai-ref-card").forEach((card) => {
+    const toggle = () => {
+      const type = card.dataset.refType;
+      const id = card.dataset.refId;
       const pool2 = type === "book" ? AI_STATE.books : AI_STATE.topics;
       const ref = pool2.find((r) => r.id === id);
-      if (cb.checked && ref && !AI_STATE.selectedRefs.some((s) => s.type === type && s.id === id)) {
+      const idx = AI_STATE.selectedRefs.findIndex((s) => s.type === type && s.id === id);
+      if (idx >= 0) {
+        AI_STATE.selectedRefs.splice(idx, 1);
+        card.classList.remove("selected");
+        card.setAttribute("aria-pressed", "false");
+      } else if (ref) {
         AI_STATE.selectedRefs.push(ref);
-      } else if (!cb.checked) {
-        AI_STATE.selectedRefs = AI_STATE.selectedRefs.filter((s) => !(s.type === type && s.id === id));
+        card.classList.add("selected");
+        card.setAttribute("aria-pressed", "true");
       }
-      renderAiSelected();
-    });
+      renderAiSelectionBar();
+      renderAiRefList(document.getElementById("aiRefSearch")?.value || "");
+    };
+    card.addEventListener("click", toggle);
+    card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
   });
 }
 
-function renderAiSelected() {
-  const box = document.getElementById("aiRefSelected");
-  if (!box) return;
-  box.innerHTML = AI_STATE.selectedRefs.length
-    ? AI_STATE.selectedRefs.map((r) => `<span class="ai-ref-chip">${escapeHtml(r.label)}<button type="button" data-chip-type="${r.type}" data-chip-id="${escapeHtml(r.id)}" aria-label="Hapus">×</button></span>`).join("")
-    : `<span style="color:#94a3b8;font-size:12px">Belum ada bahan dipilih.</span>`;
-  box.querySelectorAll("[data-chip-type]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      AI_STATE.selectedRefs = AI_STATE.selectedRefs.filter((s) => !(s.type === btn.dataset.chipType && s.id === btn.dataset.chipId));
-      renderAiSelected();
-      // uncheck checkbox
-      document.querySelectorAll(".ai-ref-item input").forEach((cb) => {
-        if (cb.dataset.refType === btn.dataset.chipType && cb.dataset.refId === btn.dataset.chipId) cb.checked = false;
-      });
-    });
-  });
+function renderAiSelectionBar() {
+  const bar = document.getElementById("aiSelectionBar");
+  if (!bar) return;
+  const n = AI_STATE.selectedRefs.length;
+  const span = bar.querySelector("span");
+  const strong = bar.querySelector("strong");
+  if (span) span.textContent = n ? "Bahan siap dikirim ke AI." : "Belum ada bahan dipilih.";
+  if (strong) strong.textContent = n ? `${n} bahan dipilih` : "";
+}
+
+function setAiLoading(loading) {
+  const btn = document.querySelector("[data-ai-generate]");
+  const btnLabel = document.querySelector("[data-ai-generate-label]");
+  const status = document.querySelector("[data-ai-status]");
+  const body = document.querySelector(".ai-modal-body");
+  if (!btn) return;
+  btn.disabled = loading;
+  if (btnLabel) btnLabel.textContent = loading ? "Generating…" : "Generate Insight";
+  if (loading) {
+    status?.classList.remove("ai-error");
+    status.textContent = "";
+    // show loading block
+    let loadingBox = document.querySelector(".ai-loading");
+    if (!loadingBox && body) {
+      loadingBox = document.createElement("div");
+      loadingBox.className = "ai-loading";
+      loadingBox.innerHTML = `
+        <span class="ai-spin"></span>
+        <div class="ai-loading-title">Sedang menyusun Insight</div>
+        <div class="ai-loading-sub">AI sedang membaca bahan yang kamu pilih dan membangun struktur konten…</div>
+        <div class="ai-progress"><div class="ai-progress-bar"></div></div>
+        <div class="ai-loading-sub">Jangan tutup halaman ini.</div>`;
+      body.appendChild(loadingBox);
+    }
+  } else {
+    document.querySelector(".ai-loading")?.remove();
+  }
 }
 
 async function generateAiDraft() {
-  const btn = document.querySelector("[data-ai-generate]");
   const status = document.querySelector("[data-ai-status]");
   const model = document.getElementById("aiModelSelect")?.value || AI_DEFAULT_MODEL;
   const brief = document.getElementById("aiBriefInput")?.value || "";
   if (!AI_STATE.selectedRefs.length) {
-    status.textContent = "Pilih minimal 1 bahan dulu.";
+    if (status) {
+      status.textContent = "Pilih minimal 1 bahan dulu.";
+      status.classList.add("ai-error");
+    }
     return;
   }
-  btn.disabled = true;
-  status.textContent = "AI menyusun draft… (bisa 20-60 detik)";
+  setAiLoading(true);
   try {
     const payload = await getJson("/books?resource=insights&action=generate", {
       method: "POST",
@@ -700,22 +748,27 @@ async function generateAiDraft() {
       }),
     });
     if (!payload?.draft) throw new Error("Draft kosong.");
-    status.textContent = "Draft siap — periksa & simpan.";
+    setAiLoading(false);
+    if (status) {
+      status.textContent = "Draft siap — periksa & simpan.";
+      status.classList.remove("ai-error");
+    }
     // render hasil ke editor baru (create flow)
     await createInsightDraft(payload.draft);
     // tutup modal setelah sukses create
     document.querySelector(".ai-modal-backdrop")?.remove();
     await loadBooks();
   } catch (error) {
-    status.textContent = error.message;
-    status.classList.add("ai-error");
-  } finally {
-    btn.disabled = false;
+    setAiLoading(false);
+    if (status) {
+      status.textContent = error.message;
+      status.classList.add("ai-error");
+    }
   }
 }
 
 async function createInsightDraft(draft) {
-  // simpan sebagai draft baru lewat POST /api/admin/insight
+  // simpan sebagai draft baru lewat POST /api/admin/books?resource=insights
   const payload = await getJson("/books?resource=insights", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -728,9 +781,10 @@ async function createInsightDraft(draft) {
       status: "draft",
     }),
   });
-  // buka editor item baru (selectContent pakai resource insight + id)
+  // buka editor item baru
   state.resource = "insights";
   state.selectedSlug = payload.id;
+  state.aiGenerated = true;
   document.querySelectorAll("[data-content-tab]").forEach((t) => t.classList.toggle("active", t.dataset.contentTab === "insights"));
   elements.bookFilters.classList.add("is-hidden");
   elements.search.placeholder = "Cari insight";
@@ -739,14 +793,5 @@ async function createInsightDraft(draft) {
   await loadStats();
   return payload;
 }
-
-// Sisipkan tombol Draft AI di editor insight (renderContentDetail dipanggil setelah innerHTML)
-const originalRenderContentDetail = renderContentDetail;
-renderContentDetail = function (item) {
-  originalRenderContentDetail(item);
-  if (state.resource === "insights") {
-    addAiDraftButton(elements.detail.querySelector(".content-editor") || elements.detail, item);
-  }
-};
 
 await bootstrapAdmin();

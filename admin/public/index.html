@@ -224,29 +224,43 @@
         <div class="ai-modal-head">
           <div>
             <p class="eyebrow">AI Draft</p>
-            <h2 id="aiModalTitle">Buat draft insight dengan AI</h2>
+            <h2 id="aiModalTitle">Generate Insight</h2>
+            <p class="ai-modal-desc">Gunakan Buku dan Knowledge sebagai bahan, lalu biarkan AI membuat draft yang bisa direview sebelum publish.</p>
           </div>
           <button type="button" class="quiet-button" data-ai-modal-close aria-label="Tutup">✕</button>
         </div>
+
         <div class="ai-modal-body">
-          <label>Pilih bahan (buku / knowledge)</label>
-          <div class="ai-source-tabs">
-            <button type="button" class="ai-source-tab active" data-ai-source-tab="book">Buku</button>
-            <button type="button" class="ai-source-tab" data-ai-source-tab="topic">Knowledge</button>
-          </div>
-          <div class="ai-refs-wrap">
-            <input id="aiRefSearch" type="search" placeholder="Cari judul…">
+          <div class="ai-step">
+            <div class="ai-step-label"><span class="ai-step-num">1</span> <strong>Sumber</strong></div>
+            <div class="ai-source-tabs">
+              <button type="button" class="ai-source-tab active" data-ai-source-tab="book">Buku</button>
+              <button type="button" class="ai-source-tab" data-ai-source-tab="topic">Knowledge</button>
+            </div>
+            <input id="aiRefSearch" class="ai-ref-search" type="search" placeholder="Cari judul…">
             <div id="aiRefList" class="ai-ref-list"></div>
-            <div id="aiRefSelected" class="ai-ref-selected"></div>
+            <div id="aiSelectionBar" class="ai-selection-bar"><span>Belum ada bahan dipilih.</span><strong></strong></div>
           </div>
-          <label>Arahan tambahan (opsional)</label>
-          <textarea id="aiBriefInput" rows="2" placeholder="Contoh: fokus ke pola kebiasaan, bahasa santai, ajak diskusi"></textarea>
-          <label>Model AI</label>
-          <select id="aiModelSelect"></select>
-          <div class="save-row">
-            <span data-ai-status></span>
-            <button type="button" class="primary-button" data-ai-generate>Draft dengan AI</button>
+
+          <div class="ai-step">
+            <div class="ai-step-label"><span class="ai-step-num">2</span> <strong>Konteks</strong></div>
+            <label for="aiBriefInput">Apa yang ingin dibuat?</label>
+            <textarea id="aiBriefInput" rows="3" placeholder="Contoh: fokus ke pola kebiasaan, bahasa santai, ajak diskusi"></textarea>
           </div>
+
+          <div class="ai-step">
+            <div class="ai-step-label"><span class="ai-step-num">3</span> <strong>Model</strong></div>
+            <label for="aiModelSelect">Pilih model AI</label>
+            <select id="aiModelSelect"></select>
+          </div>
+        </div>
+
+        <div class="ai-modal-foot">
+          <span class="ai-status" data-ai-status></span>
+          <button type="button" class="ai-generate-btn" data-ai-generate>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.4"/></svg>
+            <span data-ai-generate-label>Generate Insight</span>
+          </button>
         </div>
       </div>
     </div>
