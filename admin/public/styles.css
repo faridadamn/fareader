@@ -724,3 +724,83 @@ button {
   .ai-ref-card { padding: 9px 10px; }
 }
 
+
+/* Chapter picker (multi-insight per bagian) */
+.ai-chapter-panel {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  overflow: hidden;
+}
+.ai-chapter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.ai-chapter-head .ai-chapter-mode {
+  display: flex;
+  gap: 4px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2px;
+}
+.ai-chapter-mode button {
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--muted);
+}
+.ai-chapter-mode button.active {
+  background: var(--accent);
+  color: #fff;
+}
+.ai-chapter-list {
+  max-height: 170px;
+  overflow: auto;
+  padding: 4px 0;
+}
+.ai-chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.ai-chapter-item:hover { background: var(--surface-soft); }
+.ai-chapter-item input { accent-color: var(--accent); }
+.ai-chapter-item .sec-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-chapter-item .sec-meta { color: var(--muted); font-size: 11px; }
+.ai-loadmore {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-top: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--accent-strong);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ai-loadmore:hover { background: var(--accent-soft); }

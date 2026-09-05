@@ -164,8 +164,12 @@ export async function loadAdminContent(url, resource) {
   const sql = getSql();
   const query = (url.searchParams.get("q") || "").trim();
   const id = (url.searchParams.get("id") || "").trim();
+  const light = url.searchParams.get("light") === "1";
   const page = Math.max(1, Number(url.searchParams.get("page") || 1));
-  const pageSize = Math.min(100, Math.max(10, Number(url.searchParams.get("pageSize") || 25)));
+  const pageSize = Math.min(
+    light ? 2000 : 100,
+    Math.max(10, Number(url.searchParams.get("pageSize") || 25)),
+  );
   const offset = (page - 1) * pageSize;
   const pattern = `%${query}%`;
   if (resource === "topics") {
@@ -251,9 +255,11 @@ export async function loadBooks(url) {
   const query = (url.searchParams.get("q") || "").trim();
   const status = url.searchParams.get("status") || "all";
   const decision = url.searchParams.get("decision") || "all";
+  const light = url.searchParams.get("light") === "1";
   const page = Math.max(1, Number(url.searchParams.get("page") || 1));
+  const maxPageSize = light ? 2000 : 100;
   const pageSize = Math.min(
-    100,
+    maxPageSize,
     Math.max(10, Number(url.searchParams.get("pageSize") || 25)),
   );
   const offset = (page - 1) * pageSize;
@@ -279,37 +285,59 @@ export async function loadBooks(url) {
     FROM books b
     WHERE ${queryFilter} AND ${statusFilter} AND ${decisionFilter}
   `;
-  const rows = await sql`
-    SELECT
-      b.id,
-      b.slug,
-      b.title,
-      b.original_author,
-      b.page_count,
-      b.word_count,
-      b.reading_time_minutes,
-      b.status,
-      b.rights_verified,
-      coalesce(
-        array_agg(DISTINCT c.name) FILTER (WHERE c.id IS NOT NULL),
-        ARRAY[]::citext[]
-      ) AS categories,
-      count(DISTINCT bs.id)::int AS section_count,
-      count(DISTINCT ci.id) FILTER (WHERE ci.resolved = false)::int
-        AS issue_count
-    FROM books b
-    LEFT JOIN book_sections bs ON bs.book_id = b.id
-    LEFT JOIN book_categories bc ON bc.book_id = b.id
-    LEFT JOIN categories c ON c.id = bc.category_id
-    LEFT JOIN content_issues ci ON ci.book_id = b.id
-    WHERE ${queryFilter} AND ${statusFilter} AND ${decisionFilter}
-    GROUP BY b.id
-    ORDER BY
-      CASE WHEN b.status = 'needs_review' THEN 0 ELSE 1 END,
-      b.title
-    LIMIT ${pageSize}
-    OFFSET ${offset}
-  `;
+
+  const rows = light
+    ? await sql`
+        SELECT
+          b.id,
+          b.slug,
+          b.title,
+          b.original_author,
+          b.page_count,
+          b.word_count,
+          b.reading_time_minutes,
+          b.status,
+          coalesce(
+            (SELECT count(*)::int FROM book_sections bs WHERE bs.book_id = b.id),
+            0
+          ) AS section_count
+        FROM books b
+        WHERE ${queryFilter} AND ${statusFilter} AND ${decisionFilter}
+        ORDER BY b.title
+        LIMIT ${pageSize}
+        OFFSET ${offset}
+      `
+    : await sql`
+        SELECT
+          b.id,
+          b.slug,
+          b.title,
+          b.original_author,
+          b.page_count,
+          b.word_count,
+          b.reading_time_minutes,
+          b.status,
+          b.rights_verified,
+          coalesce(
+            array_agg(DISTINCT c.name) FILTER (WHERE c.id IS NOT NULL),
+            ARRAY[]::citext[]
+          ) AS categories,
+          count(DISTINCT bs.id)::int AS section_count,
+          count(DISTINCT ci.id) FILTER (WHERE ci.resolved = false)::int
+            AS issue_count
+        FROM books b
+        LEFT JOIN book_sections bs ON bs.book_id = b.id
+        LEFT JOIN book_categories bc ON bc.book_id = b.id
+        LEFT JOIN categories c ON c.id = bc.category_id
+        LEFT JOIN content_issues ci ON ci.book_id = b.id
+        WHERE ${queryFilter} AND ${statusFilter} AND ${decisionFilter}
+        GROUP BY b.id
+        ORDER BY
+          CASE WHEN b.status = 'needs_review' THEN 0 ELSE 1 END,
+          b.title
+        LIMIT ${pageSize}
+        OFFSET ${offset}
+      `;
   return {
     items: rows.map(mapBook),
     page,

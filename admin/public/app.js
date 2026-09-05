@@ -559,13 +559,19 @@ elements.logoutButton.addEventListener("click", () => {
 // ===== AI Draft untuk Insight =====
 const AI_STATE = {
   sourceTab: "book",
-  books: [],
-  topics: [],
-  selectedRefs: [], // {type:'book'|'topic', id, label, meta}
+  books: [],          // {type:'book', id, label, meta, section_count}
+  topics: [],         // {type:'topic', id, label, meta}
+  selectedRefs: [],   // {type, id, label, meta, scope:'whole'|'section', sections:[], sectionCache?}
+  sectionCache: {},   // slug -> {title, sections:[{order_index,title,word_count}]}
+  bookPage: 0,        // load-more books
+  topicPage: 0,       // load-more topics
+  bookTotal: 0,
+  topicTotal: 0,
   models: [],
 };
 
 const AI_DEFAULT_MODEL = "cmc/deepseek/deepseek-v4-flash";
+const AI_PAGE_SIZE = 60;
 
 async function fetchAiModels() {
   try {
@@ -598,11 +604,23 @@ async function openAiDraftModal() {
     tab.addEventListener("click", () => {
       document.querySelectorAll("[data-ai-source-tab]").forEach((t) => t.classList.toggle("active", t === tab));
       AI_STATE.sourceTab = tab.dataset.aiSourceTab;
-      renderAiRefList("");
+      hideChapterPanel();
+      renderAiRefList(document.getElementById("aiRefSearch")?.value || "");
     });
   });
 
-  await Promise.all([fetchAiRefs("book"), fetchAiRefs("topic"), fetchAiModels()]);
+  // reset setiap buka modal
+  AI_STATE.books = [];
+  AI_STATE.topics = [];
+  AI_STATE.selectedRefs = [];
+  AI_STATE.sectionCache = {};
+  AI_STATE.bookPage = 0;
+  AI_STATE.topicPage = 0;
+  AI_STATE.bookTotal = 0;
+  AI_STATE.topicTotal = 0;
+
+  await Promise.all([fetchAiModels()]);
+  await Promise.all([loadMoreRefs("book"), loadMoreRefs("topic")]);
   renderAiRefList("");
   renderAiSelectionBar();
 
@@ -612,37 +630,57 @@ async function openAiDraftModal() {
   document.querySelector("[data-ai-generate]").addEventListener("click", generateAiDraft);
 }
 
-async function fetchAiRefs(type) {
+async function loadMoreRefs(type) {
+  const resource = type === "book" ? "books" : "topics";
+  const page = type === "book" ? AI_STATE.bookPage + 1 : AI_STATE.topicPage + 1;
   try {
-    const resource = type === "book" ? "books" : "topics";
-    const params = new URLSearchParams({ resource, pageSize: 50 });
+    const params = new URLSearchParams({
+      resource,
+      pageSize: AI_PAGE_SIZE,
+      page,
+      light: type === "book" ? "1" : "1",
+    });
     const payload = await getJson(`/books?${params}`);
     if (type === "book") {
-      AI_STATE.books = (payload?.items || []).map((b) => {
+      const mapped = (payload?.items || []).map((b) => {
         const meta = [
           b.original_author ? b.original_author : null,
           b.section_count ? `${b.section_count} bagian` : null,
           b.word_count ? `${formatNumber.format(b.word_count)} kata` : null,
         ].filter(Boolean).join(" · ");
-        return { type: "book", id: b.slug, label: b.title || b.slug, meta };
+        return { type: "book", id: b.slug, label: b.title || b.slug, meta, section_count: Number(b.section_count || 0) };
       });
+      AI_STATE.books = AI_STATE.books.concat(mapped.filter((m) => !AI_STATE.books.some((x) => x.id === m.id)));
+      AI_STATE.bookPage = page;
+      AI_STATE.bookTotal = Number(payload?.total || AI_STATE.books.length);
     } else {
-      AI_STATE.topics = (payload?.items || []).map((t) => {
+      const mapped = (payload?.items || []).map((t) => {
         const pointCount = Array.isArray(t.points) ? t.points.length : 0;
         return { type: "topic", id: t.id, label: t.title || t.id, meta: pointCount ? `${pointCount} poin` : "" };
       });
+      AI_STATE.topics = AI_STATE.topics.concat(mapped.filter((m) => !AI_STATE.topics.some((x) => x.id === m.id)));
+      AI_STATE.topicPage = page;
+      AI_STATE.topicTotal = Number(payload?.total || AI_STATE.topics.length);
     }
   } catch (error) {
-    console.warn("fetch refs", type, error);
+    console.warn("load refs", type, error);
   }
 }
 
+// Render list sumber; hapus cap 40, panggil loadMore pas scroll mentok
 function renderAiRefList(query) {
   const list = document.getElementById("aiRefList");
   if (!list) return;
-  const pool = AI_STATE.sourceTab === "book" ? AI_STATE.books : AI_STATE.topics;
+  const isBook = AI_STATE.sourceTab === "book";
+  const pool = isBook ? AI_STATE.books : AI_STATE.topics;
+  const total = isBook ? AI_STATE.bookTotal : AI_STATE.topicTotal;
   const q = (query || "").toLowerCase();
-  const filtered = pool.filter((r) => !q || (r.label || "").toLowerCase().includes(q)).slice(0, 40);
+  const filtered = pool.filter((r) => !q || (r.label || "").toLowerCase().includes(q));
+
+  if (!pool.length) {
+    list.innerHTML = `<div class="ai-empty">Memuat data…</div>`;
+    return;
+  }
   if (!filtered.length) {
     list.innerHTML = `<div class="ai-empty">Tidak ada data. Coba kata lain atau pindah tab.</div>`;
     return;
@@ -672,10 +710,12 @@ function renderAiRefList(query) {
         AI_STATE.selectedRefs.splice(idx, 1);
         card.classList.remove("selected");
         card.setAttribute("aria-pressed", "false");
+        if (type === "book") hideChapterPanel(id);
       } else if (ref) {
-        AI_STATE.selectedRefs.push(ref);
+        AI_STATE.selectedRefs.push({ ...ref, scope: "whole", sections: [] });
         card.classList.add("selected");
         card.setAttribute("aria-pressed", "true");
+        if (type === "book") openChapterPanel(ref);
       }
       renderAiSelectionBar();
       renderAiRefList(document.getElementById("aiRefSearch")?.value || "");
@@ -683,6 +723,116 @@ function renderAiRefList(query) {
     card.addEventListener("click", toggle);
     card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
   });
+
+  // cek apakah masih banyak yang belum dimuat & tampilkan tombol load more
+  const loadedCount = pool.length;
+  if (loadedCount < total) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ai-loadmore";
+    btn.textContent = `Muat lebih banyak (${formatNumber.format(loadedCount)}/${formatNumber.format(total)})`;
+    btn.addEventListener("click", async () => {
+      btn.textContent = "Memuat…";
+      btn.disabled = true;
+      await loadMoreRefs(AI_STATE.sourceTab);
+      renderAiRefList(document.getElementById("aiRefSearch")?.value || "");
+    });
+    list.appendChild(btn);
+  }
+}
+
+function hideChapterPanel() {
+  const panel = document.getElementById("aiChapterPanel");
+  if (panel) panel.classList.add("is-hidden");
+}
+
+async function openChapterPanel(bookRef) {
+  const panel = document.getElementById("aiChapterPanel");
+  if (!panel) return;
+  // buku dengan 0/1 section tidak perlu panel
+  if ((bookRef.section_count || 0) <= 1) {
+    hideChapterPanel();
+    return;
+  }
+  panel.classList.remove("is-hidden");
+  panel.innerHTML = `<div class="ai-empty">Memuat bagian…</div>`;
+  let data = AI_STATE.sectionCache[bookRef.id];
+  if (!data) {
+    try {
+      data = await getJson(`/books?resource=insights&action=sections&id=${encodeURIComponent(bookRef.id)}`);
+      AI_STATE.sectionCache[bookRef.id] = data;
+    } catch {
+      panel.innerHTML = `<div class="ai-empty">Gagal memuat bagian buku.</div>`;
+      return;
+    }
+  }
+  if (!data?.sections?.length) {
+    hideChapterPanel();
+    return;
+  }
+  renderChapterPanel(bookRef.id, data.sections);
+}
+
+function renderChapterPanel(bookSlug, sections) {
+  const panel = document.getElementById("aiChapterPanel");
+  if (!panel) return;
+  const sel = AI_STATE.selectedRefs.find((s) => s.type === "book" && s.id === bookSlug);
+  const mode = sel?.scope || "whole";
+  panel.innerHTML = `
+    <div class="ai-chapter-head">
+      <span>Bagian buku</span>
+      <span class="ai-chapter-mode">
+        <button type="button" data-ch-mode="whole" class="${mode === "whole" ? "active" : ""}">Seluruh buku</button>
+        <button type="button" data-ch-mode="section" class="${mode === "section" ? "active" : ""}">Pilih bagian</button>
+      </span>
+    </div>
+    <div class="ai-chapter-list ${mode === "section" ? "" : "is-hidden"}">
+      ${sections.map((s) => {
+        const checked = sel?.sections?.includes(Number(s.order_index)) ? "checked" : "";
+        const title = cleanSectionTitle(s.title || s.heading_label || `Bagian ${Number(s.order_index) + 1}`);
+        const wc = s.word_count ? ` · ${formatNumber.format(s.word_count)} kata` : "";
+        return `<label class="ai-chapter-item"><input type="checkbox" data-sec-idx="${Number(s.order_index)}" ${checked}><span class="sec-title">${escapeHtml(title)}</span><span class="sec-meta">${wc}</span></label>`;
+      }).join("")}
+    </div>
+  `;
+  panel.querySelectorAll("[data-ch-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const m = btn.dataset.chMode;
+      const target = AI_STATE.selectedRefs.find((s) => s.type === "book" && s.id === bookSlug);
+      if (!target) return;
+      target.scope = m;
+      if (m === "section" && !target.sections.length && sections.length) {
+        target.sections = sections.map((s) => Number(s.order_index));
+      }
+      renderChapterPanel(bookSlug, sections);
+      renderAiSelectionBar();
+    });
+  });
+  const listWrap = panel.querySelector(".ai-chapter-list");
+  if (listWrap) {
+    listWrap.querySelectorAll("input[data-sec-idx]").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        const target = AI_STATE.selectedRefs.find((s) => s.type === "book" && s.id === bookSlug);
+        if (!target) return;
+        const idx = Number(cb.dataset.secIdx);
+        if (cb.checked) {
+          if (!target.sections.includes(idx)) target.sections.push(idx);
+        } else {
+          target.sections = target.sections.filter((x) => x !== idx);
+        }
+        target.scope = "section";
+        // mode auto ke pilih bagian
+        panel.querySelectorAll("[data-ch-mode]").forEach((b) => b.classList.toggle("active", b.dataset.chMode === "section"));
+        renderAiSelectionBar();
+      });
+    });
+  }
+}
+
+function cleanSectionTitle(title) {
+  const s = String(title || "").trim();
+  // hapus prefix angka kaya "1. ", "Bab 1:" biar rapi
+  return s.replace(/^(bab|chapter|bagian)\s+\d+[:.\-]\s*/i, "").replace(/^\d+[.\-)]\s*/, "");
 }
 
 function renderAiSelectionBar() {
@@ -691,8 +841,22 @@ function renderAiSelectionBar() {
   const n = AI_STATE.selectedRefs.length;
   const span = bar.querySelector("span");
   const strong = bar.querySelector("strong");
-  if (span) span.textContent = n ? "Bahan siap dikirim ke AI." : "Belum ada bahan dipilih.";
-  if (strong) strong.textContent = n ? `${n} bahan dipilih` : "";
+  if (!span || !strong) return;
+  if (!n) {
+    span.textContent = "Belum ada bahan dipilih.";
+    strong.textContent = "";
+    return;
+  }
+  const detail = AI_STATE.selectedRefs.map((r) => {
+    if (r.type === "book") {
+      return r.scope === "section"
+        ? `${r.label} (${r.sections.length} bagian)`
+        : r.label;
+    }
+    return r.label;
+  });
+  span.textContent = `Bahan: ${detail.join(", ")}`;
+  strong.textContent = `${n} bahan dipilih`;
 }
 
 function setAiLoading(loading) {
@@ -706,7 +870,6 @@ function setAiLoading(loading) {
   if (loading) {
     status?.classList.remove("ai-error");
     status.textContent = "";
-    // show loading block
     let loadingBox = document.querySelector(".ai-loading");
     if (!loadingBox && body) {
       loadingBox = document.createElement("div");
@@ -744,7 +907,13 @@ async function generateAiDraft() {
         model,
         brief,
         style: "threads_7",
-        refs: AI_STATE.selectedRefs.map((r) => ({ type: r.type, id: r.id })),
+        refs: AI_STATE.selectedRefs.map((r) => ({
+          type: r.type,
+          id: r.id,
+          ...(r.type === "book"
+            ? { scope: r.scope || "whole", sections: r.scope === "section" ? (r.sections || []) : [] }
+            : {}),
+        })),
       }),
     });
     if (!payload?.draft) throw new Error("Draft kosong.");
@@ -753,9 +922,7 @@ async function generateAiDraft() {
       status.textContent = "Draft siap — periksa & simpan.";
       status.classList.remove("ai-error");
     }
-    // render hasil ke editor baru (create flow)
     await createInsightDraft(payload.draft);
-    // tutup modal setelah sukses create
     document.querySelector(".ai-modal-backdrop")?.remove();
     await loadBooks();
   } catch (error) {

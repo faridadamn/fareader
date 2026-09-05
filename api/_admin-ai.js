@@ -16,50 +16,65 @@ function clip(text, max) {
   return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
-// Ambil isi bahan dari DB berdasarkan refs [{type, id}]
-// return: { label, text }[]
+// Ambil isi bahan dari DB berdasarkan refs [{type, id, sections?, scope?}]
+// - scope: 'whole' (default) ambil semua bagian; 'section' ambil cuma bagian terpilih
+// - sections: array order_index (opsional), filter ke bagian tertentu
+// return: { label, kind, text }[]
 export async function loadRefs(refs) {
   if (!Array.isArray(refs) || !refs.length) return [];
   const sql = getSql();
   const out = [];
-  const books = [];
-  const topics = [];
 
   for (const ref of refs.slice(0, 4)) {
     const type = ref?.type;
     const id = clean(ref?.id);
     if (!id) continue;
-    if (type === "book") books.push(id);
-    else if (type === "topic") topics.push(id);
-  }
 
-  if (books.length) {
-    const rows = await sql`
-      SELECT b.title, b.original_author, b.description,
-        coalesce((SELECT jsonb_agg(jsonb_build_object('title', s.title, 'content', s.content) ORDER BY s.order_index)
-                  FROM book_sections s WHERE s.book_id = b.id), '[]'::jsonb) AS sections
-      FROM books b WHERE b.slug = ANY(${books}) LIMIT 4`;
-    for (const r of rows) {
+    if (type === "book") {
+      const wantedSections = Array.isArray(ref.sections) && ref.sections.length
+        ? ref.sections.map((n) => Number(n)).filter((n) => Number.isFinite(n))
+        : [];
+      const scope = ref.scope || "whole";
+
+      const [r] = await sql`
+        SELECT b.title, b.original_author, b.description,
+          (SELECT jsonb_agg(
+            jsonb_build_object('order_index', s.order_index, 'title', s.title, 'content', s.content)
+            ORDER BY s.order_index)
+            FROM book_sections s WHERE s.book_id = b.id
+          ) AS sections
+        FROM books b WHERE b.slug = ${id} LIMIT 1
+      `;
+      if (!r) continue;
+      let sections = Array.isArray(r.sections) ? r.sections : [];
+      // filter bagian terpilih kalau ada
+      if (wantedSections.length && scope === "section") {
+        sections = sections.filter((s) => wantedSections.includes(Number(s.order_index)));
+      }
+
       const parts = [`Buku: ${r.title}${r.original_author ? " — " + r.original_author : ""}`];
       if (r.description) parts.push("Deskripsi: " + clip(r.description, 600));
-      const sections = Array.isArray(r.sections) ? r.sections : [];
-      // ambil s.d. 6 bagian pertama, tiap bagian dipotong
-      const secText = sections.slice(0, 6).map((s) => {
-        const title = clean(s.title);
-        const content = clip(s.content || "", 1400);
-        return (title ? title + ":\n" : "") + content;
-      }).join("\n\n");
-      if (secText) parts.push("Isi:\n" + secText);
+      if (sections.length) {
+        // seluruh buku: ringkas tiap bagian; per chapter: fokus penuh
+        const capEach = scope === "section" ? 2400 : 900;
+        const secText = sections.map((s) => {
+          const title = clean(s.title);
+          return (title ? title + ":\n" : "") + clip(s.content || "", capEach);
+        }).join("\n\n");
+        if (secText) parts.push("Isi:\n" + secText);
+      } else if (scope === "section") {
+        parts.push("(Bagian yang dipilih tidak ditemukan pada buku ini.)");
+      }
       out.push({ label: r.title, kind: "book", text: parts.join("\n\n") });
     }
-  }
 
-  if (topics.length) {
-    const rows = await sql`
-      SELECT t.id, t.title, t.categories, t.points,
-        (SELECT n.content FROM notes n WHERE n.topic_id = t.id LIMIT 1) AS note_content
-      FROM topics t WHERE t.id = ANY(${topics}) LIMIT 4`;
-    for (const r of rows) {
+    else if (type === "topic") {
+      const [r] = await sql`
+        SELECT t.id, t.title, t.categories, t.points,
+          (SELECT n.content FROM notes n WHERE n.topic_id = t.id LIMIT 1) AS note_content
+        FROM topics t WHERE t.id = ${id} LIMIT 1
+      `;
+      if (!r) continue;
       const parts = [`Knowledge: ${r.title}`];
       if (Array.isArray(r.categories) && r.categories.length) parts.push("Kategori: " + r.categories.join(", "));
       const points = Array.isArray(r.points) ? r.points : [];
@@ -70,6 +85,20 @@ export async function loadRefs(refs) {
   }
 
   return out;
+}
+
+// Ambil daftar bagian buku untuk chapter picker (multi-insight per chapter)
+export async function loadBookSections(slug) {
+  const sql = getSql();
+  const [book] = await sql`SELECT title FROM books WHERE slug = ${slug} LIMIT 1`;
+  if (!book) return null;
+  const sections = await sql`
+    SELECT order_index, title, heading_label, word_count
+    FROM book_sections
+    WHERE book_id = (SELECT id FROM books WHERE slug = ${slug})
+    ORDER BY order_index
+  `;
+  return { title: book.title, sections };
 }
 
 // Bangun prompt sistem + user dari bahan
@@ -102,6 +131,7 @@ Jumlah posts sesuai format. Pastikan JSON valid dan bisa di-parse langsung.`,
 }
 
 // Panggil proxy AI VPS (OpenAI-compatible), return parsed draft.
+// Retry otomatis sampai 3x kalau model return non-JSON (kasus umum model via router).
 export async function generateDraft({ model, brief, refs, style }) {
   if (!AI_PROXY_TOKEN) {
     throw Object.assign(new Error("AI_PROXY_TOKEN belum dikonfigurasi."), { statusCode: 503 });
@@ -112,40 +142,54 @@ export async function generateDraft({ model, brief, refs, style }) {
   }
   const { system, user } = buildPrompt({ brief, refs: context, style });
 
-  const response = await fetch(`${AI_PROXY_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${AI_PROXY_TOKEN}`,
-    },
-    body: JSON.stringify({
-      model: model || DEFAULT_MODEL,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user },
-      ],
-      temperature: 0.7,
-      max_tokens: 6000,
-      // Matikan reasoning/thinking biar output langsung ke content (bukan reasoning_content)
-      thinking: { type: "disabled" },
-    }),
-  });
+  const MAX_ATTEMPTS = 3;
+  let lastError = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(`${AI_PROXY_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${AI_PROXY_TOKEN}`,
+        },
+        body: JSON.stringify({
+          model: model || DEFAULT_MODEL,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          temperature: attempt > 1 ? 0.9 : 0.7, // variasi kecil pas retry biar output beda
+          max_tokens: 6000,
+          // Matikan reasoning/thinking biar output langsung ke content (bukan reasoning_content)
+          thinking: { type: "disabled" },
+        }),
+      });
 
-  const raw = await response.text();
-  let data;
-  try { data = JSON.parse(raw); } catch { data = { raw }; }
-  if (!response.ok) {
-    const msg = data?.error?.message || data?.error || `HTTP ${response.status}`;
-    throw Object.assign(new Error("AI gagal: " + String(msg).slice(0, 300)), { statusCode: 502 });
-  }
+      const raw = await response.text();
+      let data;
+      try { data = JSON.parse(raw); } catch { data = { raw }; }
+      if (!response.ok) {
+        const msg = data?.error?.message || data?.error || `HTTP ${response.status}`;
+        throw Object.assign(new Error("AI gagal: " + String(msg).slice(0, 300)), { statusCode: 502 });
+      }
 
-  const content = data?.choices?.[0]?.message?.content || "";
-  const draftObj = extractJson(content);
-  if (!draftObj) {
-    throw Object.assign(new Error("AI tidak mengembalikan JSON valid."), { statusCode: 502 });
+      const content = data?.choices?.[0]?.message?.content || "";
+      const draftObj = extractJson(content);
+      if (!draftObj) {
+        throw Object.assign(new Error("AI tidak mengembalikan JSON valid."), { statusCode: 502 });
+      }
+      const draft = normalizeDraft(draftObj, style);
+      return draft;
+    } catch (error) {
+      lastError = error;
+      // jangan retry kalau error non-parse (auth/5xx) atau 400
+      if (error.statusCode && error.statusCode !== 502) throw error;
+      // kalau 502 (gagal parse) retry; tapi kalau sudah attempt terakhir, lempar
+      if (attempt === MAX_ATTEMPTS) throw lastError;
+      await new Promise((r) => setTimeout(r, 800 * attempt));
+    }
   }
-  const draft = normalizeDraft(draftObj, style);
-  return draft;
+  throw lastError || new Error("Gagal menghasilkan draft.");
 }
 
 // Parse JSON dari teks model. Return object/array hasil parse, atau null.

@@ -14,6 +14,7 @@ import {
   handleGenerate,
   handleModels,
 } from "../../_admin-insight.js";
+import { loadBookSections } from "../../_admin-ai.js";
 
 export default async function handler(request, response) {
   if (handleOptions(request, response)) return;
@@ -30,6 +31,13 @@ export default async function handler(request, response) {
       // GET ?action=models → daftar model AI (resource=insights)
       if (request.method === "GET" && resource === "insights" && action === "models") {
         return sendJson(request, response, 200, await handleModels());
+      }
+
+      // GET ?action=sections&id=<book-slug> → daftar chapter buku buat multi-insight
+      if (request.method === "GET" && resource === "insights" && action === "sections") {
+        if (!id) return sendJson(request, response, 400, { error: "Parameter id (slug buku) wajib ada." });
+        const result = await loadBookSections(id);
+        return result ? sendJson(request, response, 200, result) : sendJson(request, response, 404, { error: "Buku tidak ditemukan." });
       }
 
       // POST resource=insights: action=generate → draft AI; tanpa action → create draft baru
