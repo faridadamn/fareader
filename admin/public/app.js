@@ -546,4 +546,207 @@ elements.logoutButton.addEventListener("click", () => {
   showLoginWall("Anda sudah keluar dari panel admin.");
 });
 
+// ===== AI Draft untuk Insight =====
+const AI_STATE = {
+  sourceTab: "book",
+  books: [],
+  topics: [],
+  selectedRefs: [], // {type:'book'|'topic', id, label}
+  models: [],
+};
+
+const AI_DEFAULT_MODEL = "cmc/deepseek/deepseek-v4-flash";
+
+// Tombol Draft AI di editor insight (dipanggil dari renderContentDetail)
+function addAiDraftButton(container, item) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "primary-button ai-draft-trigger";
+  btn.style.cssText = "margin: 4px 0 12px; width:100%; background:#7c3aed;";
+  btn.innerHTML = "✨ Draft dengan AI";
+  btn.addEventListener("click", () => openAiDraftModal());
+  container.appendChild(btn);
+}
+
+async function fetchAiModels() {
+  try {
+    const payload = await getJson("/insight/models");
+    AI_STATE.models = (payload?.data || []).map((m) => m.id).filter(Boolean);
+  } catch {
+    AI_STATE.models = [AI_DEFAULT_MODEL];
+  }
+  const sel = document.getElementById("aiModelSelect");
+  if (!sel) return;
+  sel.innerHTML = AI_STATE.models.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("")
+    || `<option value="${AI_DEFAULT_MODEL}">${AI_DEFAULT_MODEL}</option>`;
+}
+
+async function openAiDraftModal() {
+  // render modal
+  const tpl = document.getElementById("aiDraftModalTemplate");
+  const existing = document.querySelector(".ai-modal-backdrop");
+  if (existing) existing.remove();
+  const frag = tpl.content.cloneNode(true);
+  document.body.appendChild(frag);
+  const backdrop = document.querySelector(".ai-modal-backdrop");
+  backdrop.classList.remove("is-hidden");
+
+  backdrop.querySelectorAll("[data-ai-modal-close]").forEach((el) =>
+    el.addEventListener("click", () => backdrop.remove()),
+  );
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.remove(); });
+
+  document.querySelectorAll("[data-ai-source-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll("[data-ai-source-tab]").forEach((t) => t.classList.toggle("active", t === tab));
+      AI_STATE.sourceTab = tab.dataset.aiSourceTab;
+      renderAiRefList("");
+    });
+  });
+
+  await Promise.all([fetchAiRefs("book"), fetchAiRefs("topic"), fetchAiModels()]);
+  renderAiRefList("");
+  renderAiSelected();
+
+  const search = document.getElementById("aiRefSearch");
+  search.addEventListener("input", () => renderAiRefList(search.value));
+
+  document.querySelector("[data-ai-generate]").addEventListener("click", generateAiDraft);
+}
+
+async function fetchAiRefs(type) {
+  try {
+    const resource = type === "book" ? "books" : "topics";
+    const params = new URLSearchParams({ resource, pageSize: 50 });
+    const payload = await getJson(`/books?${params}`);
+    if (type === "book") AI_STATE.books = (payload?.items || []).map((b) => ({ type: "book", id: b.slug, label: b.title || b.slug }));
+    else AI_STATE.topics = (payload?.items || []).map((t) => ({ type: "topic", id: t.id, label: t.title || t.id }));
+  } catch (error) {
+    console.warn("fetch refs", type, error);
+  }
+}
+
+function renderAiRefList(query) {
+  const list = document.getElementById("aiRefList");
+  if (!list) return;
+  const pool = AI_STATE.sourceTab === "book" ? AI_STATE.books : AI_STATE.topics;
+  const q = (query || "").toLowerCase();
+  const filtered = pool.filter((r) => !q || (r.label || "").toLowerCase().includes(q)).slice(0, 40);
+  if (!filtered.length) {
+    list.innerHTML = `<div style="padding:12px;color:#64748b;font-size:13px">Tidak ada data. Coba kata lain atau pindah tab.</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map((r) => {
+    const checked = AI_STATE.selectedRefs.some((s) => s.type === r.type && s.id === r.id);
+    return `<label class="ai-ref-item">
+      <input type="checkbox" data-ref-type="${r.type}" data-ref-id="${escapeHtml(r.id)}" ${checked ? "checked" : ""}>
+      <span>${escapeHtml(r.label)}</span>
+    </label>`;
+  }).join("");
+  list.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      const type = cb.dataset.refType;
+      const id = cb.dataset.refId;
+      const pool2 = type === "book" ? AI_STATE.books : AI_STATE.topics;
+      const ref = pool2.find((r) => r.id === id);
+      if (cb.checked && ref && !AI_STATE.selectedRefs.some((s) => s.type === type && s.id === id)) {
+        AI_STATE.selectedRefs.push(ref);
+      } else if (!cb.checked) {
+        AI_STATE.selectedRefs = AI_STATE.selectedRefs.filter((s) => !(s.type === type && s.id === id));
+      }
+      renderAiSelected();
+    });
+  });
+}
+
+function renderAiSelected() {
+  const box = document.getElementById("aiRefSelected");
+  if (!box) return;
+  box.innerHTML = AI_STATE.selectedRefs.length
+    ? AI_STATE.selectedRefs.map((r) => `<span class="ai-ref-chip">${escapeHtml(r.label)}<button type="button" data-chip-type="${r.type}" data-chip-id="${escapeHtml(r.id)}" aria-label="Hapus">×</button></span>`).join("")
+    : `<span style="color:#94a3b8;font-size:12px">Belum ada bahan dipilih.</span>`;
+  box.querySelectorAll("[data-chip-type]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      AI_STATE.selectedRefs = AI_STATE.selectedRefs.filter((s) => !(s.type === btn.dataset.chipType && s.id === btn.dataset.chipId));
+      renderAiSelected();
+      // uncheck checkbox
+      document.querySelectorAll(".ai-ref-item input").forEach((cb) => {
+        if (cb.dataset.refType === btn.dataset.chipType && cb.dataset.refId === btn.dataset.chipId) cb.checked = false;
+      });
+    });
+  });
+}
+
+async function generateAiDraft() {
+  const btn = document.querySelector("[data-ai-generate]");
+  const status = document.querySelector("[data-ai-status]");
+  const model = document.getElementById("aiModelSelect")?.value || AI_DEFAULT_MODEL;
+  const brief = document.getElementById("aiBriefInput")?.value || "";
+  if (!AI_STATE.selectedRefs.length) {
+    status.textContent = "Pilih minimal 1 bahan dulu.";
+    return;
+  }
+  btn.disabled = true;
+  status.textContent = "AI menyusun draft… (bisa 20-60 detik)";
+  try {
+    const payload = await getJson("/insight/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        brief,
+        style: "threads_7",
+        refs: AI_STATE.selectedRefs.map((r) => ({ type: r.type, id: r.id })),
+      }),
+    });
+    if (!payload?.draft) throw new Error("Draft kosong.");
+    status.textContent = "Draft siap — periksa & simpan.";
+    // render hasil ke editor baru (create flow)
+    await createInsightDraft(payload.draft);
+    // tutup modal setelah sukses create
+    document.querySelector(".ai-modal-backdrop")?.remove();
+    await loadBooks();
+  } catch (error) {
+    status.textContent = error.message;
+    status.classList.add("ai-error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function createInsightDraft(draft) {
+  // simpan sebagai draft baru lewat POST /api/admin/insight
+  const payload = await getJson("/insight", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: draft.title,
+      thesis: draft.thesis,
+      content_types: draft.content_types || ["insight"],
+      format: draft.format || "threads_7",
+      posts: draft.posts,
+      status: "draft",
+    }),
+  });
+  // buka editor item baru (selectContent pakai resource insight + id)
+  state.resource = "insights";
+  state.selectedSlug = payload.id;
+  document.querySelectorAll("[data-content-tab]").forEach((t) => t.classList.toggle("active", t.dataset.contentTab === "insights"));
+  elements.bookFilters.classList.add("is-hidden");
+  elements.search.placeholder = "Cari insight";
+  const item = await getJson(`/books?resource=insights&id=${encodeURIComponent(payload.id)}`);
+  renderContentDetail(item);
+  await loadStats();
+  return payload;
+}
+
+// Sisipkan tombol Draft AI di editor insight (renderContentDetail dipanggil setelah innerHTML)
+const originalRenderContentDetail = renderContentDetail;
+renderContentDetail = function (item) {
+  originalRenderContentDetail(item);
+  if (state.resource === "insights") {
+    addAiDraftButton(elements.detail.querySelector(".content-editor") || elements.detail, item);
+  }
+};
+
 await bootstrapAdmin();

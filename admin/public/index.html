@@ -218,6 +218,40 @@
     </article>
   </template>
 
+  <template id="aiDraftModalTemplate">
+    <div class="ai-modal-backdrop" data-ai-modal-close>
+      <div class="ai-modal" role="dialog" aria-modal="true" aria-labelledby="aiModalTitle">
+        <div class="ai-modal-head">
+          <div>
+            <p class="eyebrow">AI Draft</p>
+            <h2 id="aiModalTitle">Buat draft insight dengan AI</h2>
+          </div>
+          <button type="button" class="quiet-button" data-ai-modal-close aria-label="Tutup">✕</button>
+        </div>
+        <div class="ai-modal-body">
+          <label>Pilih bahan (buku / knowledge)</label>
+          <div class="ai-source-tabs">
+            <button type="button" class="ai-source-tab active" data-ai-source-tab="book">Buku</button>
+            <button type="button" class="ai-source-tab" data-ai-source-tab="topic">Knowledge</button>
+          </div>
+          <div class="ai-refs-wrap">
+            <input id="aiRefSearch" type="search" placeholder="Cari judul…">
+            <div id="aiRefList" class="ai-ref-list"></div>
+            <div id="aiRefSelected" class="ai-ref-selected"></div>
+          </div>
+          <label>Arahan tambahan (opsional)</label>
+          <textarea id="aiBriefInput" rows="2" placeholder="Contoh: fokus ke pola kebiasaan, bahasa santai, ajak diskusi"></textarea>
+          <label>Model AI</label>
+          <select id="aiModelSelect"></select>
+          <div class="save-row">
+            <span data-ai-status></span>
+            <button type="button" class="primary-button" data-ai-generate>Draft dengan AI</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
   <script type="module" src="/admin/app.js"></script>
 </body>
 </html>

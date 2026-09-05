@@ -392,3 +392,118 @@ button {
   .detail-heading { display: block; }
   .metadata-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* ===== AI Draft modal ===== */
+.ai-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 14, 20, 0.6);
+  backdrop-filter: blur(3px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.ai-modal-backdrop.is-hidden { display: none; }
+.ai-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: min(560px, 100%);
+  max-height: 85vh;
+  overflow: auto;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+  padding: 22px;
+}
+.ai-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.ai-modal-head h2 { margin: 0; font-size: 18px; }
+.ai-source-tabs { display: flex; gap: 8px; margin: 8px 0 10px; }
+.ai-source-tab {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #d8dee8;
+  background: #f5f7fa;
+  cursor: pointer;
+  font-size: 13px;
+}
+.ai-source-tab.active {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+.ai-refs-wrap { margin-bottom: 12px; }
+.ai-ref-list {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin-top: 8px;
+  background: #fafbfc;
+}
+.ai-ref-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #edf1f6;
+  cursor: pointer;
+}
+.ai-ref-item:hover { background: #eef7f6; }
+.ai-ref-item input { accent-color: #0f766e; }
+.ai-ref-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ai-ref-chip {
+  background: #e6f4f2;
+  color: #0b5c56;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ai-ref-chip button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+}
+.ai-modal-body label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 10px 0 6px;
+  color: #1e293b;
+}
+.ai-modal-body textarea,
+.ai-modal-body input,
+.ai-modal-body select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+.ai-draft-preview {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px;
+  margin-top: 12px;
+}
+.ai-draft-preview h4 { margin: 0 0 8px; }
+.ai-error { color: #b91c1c; font-size: 12px; }
