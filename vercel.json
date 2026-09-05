@@ -20,9 +20,6 @@
   ],
   "functions": {
     "api/**/*.js": {
-      "maxDuration": 10
-    },
-    "api/admin/books/index.js": {
       "maxDuration": 60
     }
   }
