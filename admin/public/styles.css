@@ -725,71 +725,6 @@ button {
 }
 
 
-/* Chapter picker (multi-insight per bagian) */
-.ai-chapter-panel {
-  margin-top: 10px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--paper);
-  overflow: hidden;
-}
-.ai-chapter-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px 12px;
-  background: var(--surface-soft);
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ink);
-}
-.ai-chapter-head .ai-chapter-mode {
-  display: flex;
-  gap: 4px;
-  background: var(--paper);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 2px;
-}
-.ai-chapter-mode button {
-  border: none;
-  background: transparent;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  color: var(--muted);
-}
-.ai-chapter-mode button.active {
-  background: var(--accent);
-  color: #fff;
-}
-.ai-chapter-list {
-  max-height: 170px;
-  overflow: auto;
-  padding: 4px 0;
-}
-.ai-chapter-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  font-size: 12px;
-  color: var(--ink);
-  cursor: pointer;
-}
-.ai-chapter-item:hover { background: var(--surface-soft); }
-.ai-chapter-item input { accent-color: var(--accent); }
-.ai-chapter-item .sec-title {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ai-chapter-item .sec-meta { color: var(--muted); font-size: 11px; }
 .ai-loadmore {
   display: block;
   width: 100%;
@@ -804,3 +739,158 @@ button {
   cursor: pointer;
 }
 .ai-loadmore:hover { background: var(--accent-soft); }
+
+/* ===== Post editor cards + copy (insight) ===== */
+.post-editors { gap: 12px; }
+.post-editors-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.post-editors-head h3 { margin: 0; }
+.post-editor {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  overflow: hidden;
+}
+.post-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--line);
+}
+.post-editor-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-strong);
+  letter-spacing: 0.02em;
+}
+.post-editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 0;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: var(--paper);
+  resize: vertical;
+  min-height: 120px;
+}
+.post-editor textarea:focus { outline: 2px solid var(--accent-soft); }
+.copy-post-btn,
+.copy-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--accent-strong);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.copy-post-btn:hover,
+.copy-all-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.copy-post-btn:disabled,
+.copy-all-btn:disabled { opacity: 0.7; cursor: default; }
+
+/* ===== Chapter panel — samakan dengan design system (navy/teal, radius 12) ===== */
+.ai-chapter-panel {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  overflow: hidden;
+}
+.ai-chapter-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--line);
+}
+.ai-chapter-head > span:first-child {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ai-chapter-mode {
+  display: inline-flex;
+  gap: 3px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 2px;
+}
+.ai-chapter-mode button {
+  border: none;
+  background: transparent;
+  padding: 4px 11px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--muted);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.ai-chapter-mode button.active {
+  background: var(--accent-strong);
+  color: #fff;
+}
+.ai-chapter-list {
+  max-height: 200px;
+  overflow: auto;
+  padding: 6px 0;
+}
+.ai-chapter-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.ai-chapter-item:hover { background: var(--surface-soft); }
+.ai-chapter-item input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.ai-chapter-item .sec-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-chapter-item .sec-meta { color: var(--muted); font-size: 11px; flex: 0 0 auto; }
+.ai-chapter-footer {
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-soft);
+  font-size: 11px;
+  color: var(--muted);
+}

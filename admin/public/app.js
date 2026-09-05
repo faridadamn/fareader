@@ -244,12 +244,75 @@ function renderContentDetail(item) {
         </div>
         <label>Tesis<textarea data-field="thesis" rows="3">${escapeHtml(item.thesis || "")}</textarea></label>
         <label>Jenis konten <small>satu jenis per baris</small><textarea data-field="content_types" rows="3">${escapeHtml(textLines(item.content_types))}</textarea></label>
-        <section class="post-editors"><h3>Isi Insight</h3>${posts.map((post, index) => `<label>Bagian ${index + 1}<textarea data-post-index="${index}" rows="7">${escapeHtml(post.text || "")}</textarea></label>`).join("")}</section>
+        <section class="post-editors">
+          <div class="post-editors-head">
+            <h3>Isi Insight</h3>
+            <button type="button" class="copy-all-btn" data-copy-all-posts title="Salin semua bagian sekaligus">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Salin semua
+            </button>
+          </div>
+          ${posts.map((post, index) => `
+            <div class="post-editor">
+              <div class="post-editor-head">
+                <span class="post-editor-label">Bagian ${index + 1}</span>
+                <button type="button" class="copy-post-btn" data-copy-post="${index}" title="Salin bagian ini">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  Salin
+                </button>
+              </div>
+              <textarea data-post-index="${index}" rows="6" placeholder="Tulis bagian insight…">${escapeHtml(post.text || "")}</textarea>
+            </div>`).join("")}
+        </section>
         <div class="save-row"><span data-save-status></span><button type="button" class="primary-button" data-save-content>Simpan Insight</button></div>
       </article>`;
   }
   elements.detail.querySelector("[data-save-content]").addEventListener("click", saveContentDetail);
   elements.detail.querySelector("[data-ai-open]")?.addEventListener("click", () => openAiDraftModal());
+  // tombol copy per bagian / semua
+  elements.detail.querySelectorAll("[data-copy-post]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = Number(btn.dataset.copyPost);
+      const ta = elements.detail.querySelector(`textarea[data-post-index="${idx}"]`);
+      if (!ta) return;
+      await copyTextToClipboard(ta.value.trim());
+      flashCopyButton(btn, "Tersalin ✓");
+    });
+  });
+  elements.detail.querySelector("[data-copy-all-posts]")?.addEventListener("click", async () => {
+    const all = Array.from(elements.detail.querySelectorAll("textarea[data-post-index]"))
+      .map((ta) => ta.value.trim())
+      .filter(Boolean);
+    if (!all.length) return;
+    await copyTextToClipboard(all.join("\n\n"));
+    flashCopyButton(elements.detail.querySelector("[data-copy-all-posts]"), "Semua tersalin ✓");
+  });
+}
+
+// Copy helper — fallback kalau clipboard API gak jalan
+async function copyTextToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+}
+
+function flashCopyButton(btn, label) {
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = label;
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }, 1400);
 }
 
 async function saveContentDetail() {
@@ -561,17 +624,14 @@ const AI_STATE = {
   sourceTab: "book",
   books: [],          // {type:'book', id, label, meta, section_count}
   topics: [],         // {type:'topic', id, label, meta}
-  selectedRefs: [],   // {type, id, label, meta, scope:'whole'|'section', sections:[], sectionCache?}
+  selectedRefs: [],   // {type, id, label, meta, scope:'whole'|'section', sections:[]}
   sectionCache: {},   // slug -> {title, sections:[{order_index,title,word_count}]}
-  bookPage: 0,        // load-more books
-  topicPage: 0,       // load-more topics
-  bookTotal: 0,
-  topicTotal: 0,
+  renderCount: 80,    // berapa item dirender sekarang (load-more lokal)
   models: [],
 };
 
 const AI_DEFAULT_MODEL = "cmc/deepseek/deepseek-v4-flash";
-const AI_PAGE_SIZE = 60;
+const AI_RENDER_STEP = 80;
 
 async function fetchAiModels() {
   try {
@@ -604,45 +664,46 @@ async function openAiDraftModal() {
     tab.addEventListener("click", () => {
       document.querySelectorAll("[data-ai-source-tab]").forEach((t) => t.classList.toggle("active", t === tab));
       AI_STATE.sourceTab = tab.dataset.aiSourceTab;
+      AI_STATE.renderCount = AI_RENDER_STEP;
       hideChapterPanel();
       renderAiRefList(document.getElementById("aiRefSearch")?.value || "");
     });
   });
 
-  // reset setiap buka modal
+  // reset & fetch semua sumber sekali (light mode) biar search jalan atas seluruh data
   AI_STATE.books = [];
   AI_STATE.topics = [];
   AI_STATE.selectedRefs = [];
   AI_STATE.sectionCache = {};
-  AI_STATE.bookPage = 0;
-  AI_STATE.topicPage = 0;
-  AI_STATE.bookTotal = 0;
-  AI_STATE.topicTotal = 0;
+  AI_STATE.renderCount = AI_RENDER_STEP;
 
   await Promise.all([fetchAiModels()]);
-  await Promise.all([loadMoreRefs("book"), loadMoreRefs("topic")]);
+  await Promise.all([fetchAllRefs("book"), fetchAllRefs("topic")]);
   renderAiRefList("");
   renderAiSelectionBar();
 
   const search = document.getElementById("aiRefSearch");
-  search.addEventListener("input", () => renderAiRefList(search.value));
+  search.addEventListener("input", () => {
+    AI_STATE.renderCount = AI_RENDER_STEP;
+    renderAiRefList(search.value);
+  });
 
   document.querySelector("[data-ai-generate]").addEventListener("click", generateAiDraft);
 }
 
-async function loadMoreRefs(type) {
+// Fetch SEMUA buku/topics sekali (light=1 + pageSize besar) → search lokal menyeluruh
+async function fetchAllRefs(type) {
   const resource = type === "book" ? "books" : "topics";
-  const page = type === "book" ? AI_STATE.bookPage + 1 : AI_STATE.topicPage + 1;
   try {
     const params = new URLSearchParams({
       resource,
-      pageSize: AI_PAGE_SIZE,
-      page,
-      light: type === "book" ? "1" : "1",
+      pageSize: 2000,
+      page: 1,
+      light: "1",
     });
     const payload = await getJson(`/books?${params}`);
     if (type === "book") {
-      const mapped = (payload?.items || []).map((b) => {
+      AI_STATE.books = (payload?.items || []).map((b) => {
         const meta = [
           b.original_author ? b.original_author : null,
           b.section_count ? `${b.section_count} bagian` : null,
@@ -650,30 +711,23 @@ async function loadMoreRefs(type) {
         ].filter(Boolean).join(" · ");
         return { type: "book", id: b.slug, label: b.title || b.slug, meta, section_count: Number(b.section_count || 0) };
       });
-      AI_STATE.books = AI_STATE.books.concat(mapped.filter((m) => !AI_STATE.books.some((x) => x.id === m.id)));
-      AI_STATE.bookPage = page;
-      AI_STATE.bookTotal = Number(payload?.total || AI_STATE.books.length);
     } else {
-      const mapped = (payload?.items || []).map((t) => {
+      AI_STATE.topics = (payload?.items || []).map((t) => {
         const pointCount = Array.isArray(t.points) ? t.points.length : 0;
         return { type: "topic", id: t.id, label: t.title || t.id, meta: pointCount ? `${pointCount} poin` : "" };
       });
-      AI_STATE.topics = AI_STATE.topics.concat(mapped.filter((m) => !AI_STATE.topics.some((x) => x.id === m.id)));
-      AI_STATE.topicPage = page;
-      AI_STATE.topicTotal = Number(payload?.total || AI_STATE.topics.length);
     }
   } catch (error) {
-    console.warn("load refs", type, error);
+    console.warn("fetch all refs", type, error);
   }
 }
 
-// Render list sumber; hapus cap 40, panggil loadMore pas scroll mentok
+// Render list sumber (search lokal atas SEMUA data, load-more lokal bertahap)
 function renderAiRefList(query) {
   const list = document.getElementById("aiRefList");
   if (!list) return;
   const isBook = AI_STATE.sourceTab === "book";
   const pool = isBook ? AI_STATE.books : AI_STATE.topics;
-  const total = isBook ? AI_STATE.bookTotal : AI_STATE.topicTotal;
   const q = (query || "").toLowerCase();
   const filtered = pool.filter((r) => !q || (r.label || "").toLowerCase().includes(q));
 
@@ -682,10 +736,12 @@ function renderAiRefList(query) {
     return;
   }
   if (!filtered.length) {
-    list.innerHTML = `<div class="ai-empty">Tidak ada data. Coba kata lain atau pindah tab.</div>`;
+    list.innerHTML = `<div class="ai-empty">Tidak ada hasil untuk "${escapeHtml(q)}". Coba kata lain.</div>`;
     return;
   }
-  list.innerHTML = filtered.map((r) => {
+
+  const visible = filtered.slice(0, AI_STATE.renderCount);
+  list.innerHTML = visible.map((r) => {
     const selected = AI_STATE.selectedRefs.some((s) => s.type === r.type && s.id === r.id);
     return `
       <div class="ai-ref-card ${selected ? "selected" : ""}" data-ref-type="${r.type}" data-ref-id="${escapeHtml(r.id)}" role="button" tabindex="0" aria-pressed="${selected}">
@@ -724,17 +780,14 @@ function renderAiRefList(query) {
     card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
   });
 
-  // cek apakah masih banyak yang belum dimuat & tampilkan tombol load more
-  const loadedCount = pool.length;
-  if (loadedCount < total) {
+  // load-more lokal: masih ada hasil yang belum dirender
+  if (filtered.length > AI_STATE.renderCount) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "ai-loadmore";
-    btn.textContent = `Muat lebih banyak (${formatNumber.format(loadedCount)}/${formatNumber.format(total)})`;
-    btn.addEventListener("click", async () => {
-      btn.textContent = "Memuat…";
-      btn.disabled = true;
-      await loadMoreRefs(AI_STATE.sourceTab);
+    btn.textContent = `Muat lebih banyak (${formatNumber.format(AI_STATE.renderCount)}/${formatNumber.format(filtered.length)})`;
+    btn.addEventListener("click", () => {
+      AI_STATE.renderCount += AI_RENDER_STEP;
       renderAiRefList(document.getElementById("aiRefSearch")?.value || "");
     });
     list.appendChild(btn);
