@@ -21,12 +21,6 @@
   "functions": {
     "api/**/*.js": {
       "maxDuration": 10
-    },
-    "api/admin/insight/generate.js": {
-      "maxDuration": 60
-    },
-    "api/admin/insight/index.js": {
-      "maxDuration": 60
     }
   }
 }
